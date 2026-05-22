@@ -2,11 +2,12 @@ import { Router } from 'express';
 import { asyncHandler } from '../../lib/http.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { validateBody } from '../../middleware/validate.js';
-import { createGoalSchema, scoreInputSchema, updateGoalSchema, whatIfSchema } from './goals.schema.js';
+import { contributeSchema, createGoalSchema, scoreInputSchema, updateGoalSchema, whatIfSchema } from './goals.schema.js';
 import {
   getGoalById,
   getGoals,
   getRecommendation,
+  postContribute,
   postGoal,
   postRecalculate,
   postScoreInput,
@@ -29,3 +30,4 @@ goalsRouter.post('/:id/score-inputs', validateBody(scoreInputSchema), asyncHandl
 goalsRouter.get('/:id/recommendation', asyncHandler(getRecommendation));
 goalsRouter.post('/:id/recalculate', asyncHandler(postRecalculate));
 goalsRouter.post('/:id/what-if', validateBody(whatIfSchema), asyncHandler(postWhatIf));
+goalsRouter.post('/:id/contribute', validateBody(contributeSchema), asyncHandler(postContribute));

@@ -4,6 +4,7 @@ import type {
   AssetType,
   ExpenseTrendPoint,
   IncomeDTO,
+  IncomeHistoryEntry,
   IncomeType,
   LiabilityDTO,
   LiabilityType,
@@ -39,6 +40,26 @@ export function useExpenseTrend(months = 6) {
   return useQuery({
     queryKey: ['expense-trend', months],
     queryFn: async (): Promise<ExpenseTrendPoint[]> => (await api.get('/expenses/trend', { params: { months } })).data,
+  });
+}
+
+export function useIncomeHistory(months = 6) {
+  return useQuery({
+    queryKey: ['income-history', months],
+    queryFn: async (): Promise<IncomeHistoryEntry[]> => (await api.get('/income-history', { params: { months } })).data,
+  });
+}
+
+/** Manually set a month's income (overrides the auto snapshot). */
+export function useSetMonthlyIncome() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ month, amount }: { month: string; amount: number }): Promise<IncomeHistoryEntry> =>
+      (await api.put(`/income-history/${month}`, { amount })).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['income-history'] });
+      void qc.invalidateQueries({ queryKey: ['expense-trend'] });
+    },
   });
 }
 

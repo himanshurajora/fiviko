@@ -50,6 +50,11 @@ export const whatIfSchema = z.object({
   overrideTargetAmount: z.number().positive().optional(),
 });
 
+/** Record actual savings toward a goal (in the goal's currency). */
+export const contributeSchema = z.object({
+  amount: z.number().positive('Contribution must be greater than 0'),
+});
+
 export type CreateGoalInput = z.infer<typeof createGoalSchema>;
 export type UpdateGoalInput = z.infer<typeof updateGoalSchema>;
 export type ScoreInput = z.infer<typeof scoreInputSchema>;

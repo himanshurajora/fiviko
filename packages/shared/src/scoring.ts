@@ -116,6 +116,18 @@ export const SAFETY_THRESHOLDS = {
   buyNowAtOrAbove: 70,
   /** Liquid money must stay above this multiple of mandatory expenses post-purchase. */
   minLiquidityMonthsAfterPurchase: 3,
+  /**
+   * Fraction of semi-liquid assets (stocks, gold, mutual funds…) counted toward
+   * "liquid" money — they can be sold, but with friction/volatility, so we apply
+   * a haircut rather than counting them fully or not at all.
+   */
+  semiLiquidHaircut: 0.6,
+  /**
+   * When a user has no mandatory expenses logged yet, base the emergency-fund
+   * target on this fraction of monthly income (assume part of income is
+   * essential) so the target never collapses to zero.
+   */
+  emergencyIncomeEssentialRate: 0.5,
 } as const;
 
 /**

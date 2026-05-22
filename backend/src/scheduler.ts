@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { env } from './config/env.js';
 import { generateRecurringForAllUsers } from './modules/expenses/recurring.service.js';
+import { monthKey, snapshotMonthForAllUsers } from './modules/income-history/income-history.service.js';
 
 /**
  * Optional in-process scheduler. Phase 1 only needs one genuine wall-clock job:
@@ -16,16 +17,20 @@ export function startScheduler(): void {
     return;
   }
 
-  // 02:00 UTC on the 1st of every month.
+  // 02:00 UTC on the 1st of every month: generate recurring expenses and
+  // snapshot each user's income for the new month (idempotent).
   cron.schedule(
     '0 2 1 * *',
     () => {
       void generateRecurringForAllUsers()
         .then((n) => console.log(`🔁 Recurring expenses generated: ${n}`))
         .catch((err) => console.error('Recurring generation failed:', err));
+      void snapshotMonthForAllUsers(monthKey(new Date()))
+        .then((n) => console.log(`📸 Income snapshots created: ${n}`))
+        .catch((err) => console.error('Income snapshot failed:', err));
     },
     { timezone: 'UTC' },
   );
 
-  console.log('⏰ Scheduler started (recurring expenses: monthly).');
+  console.log('⏰ Scheduler started (recurring expenses + income snapshots: monthly).');
 }

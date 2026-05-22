@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency } from '@/lib/format';
+import { notify } from '@/store/toast';
 
 export interface ProfileItem {
   id: string;
@@ -42,8 +43,14 @@ export function ProfileSection({
   async function submit() {
     if (form.amount <= 0 && form.amount2 <= 0) return;
     await onAdd(form);
+    notify.custom(`${title} saved`, { tone: 'success', icon: '✅', sound: 'save' });
     setForm({ key: options[0].value, name: '', amount: 0, amount2: 0 });
     setOpen(false);
+  }
+
+  function remove(id: string) {
+    onDelete(id);
+    notify.custom('Removed', { tone: 'info', icon: '🗑️', sound: 'tap' });
   }
 
   return (
@@ -68,7 +75,7 @@ export function ProfileSection({
                 {it.subtitle && <p className="text-xs text-ink-soft">{it.subtitle}</p>}
               </div>
               <span className="shrink-0 font-bold text-ink">{formatCurrency(it.amount, it.currency)}</span>
-              <button onClick={() => onDelete(it.id)} className="focus-ring shrink-0 rounded-full p-1 text-ink-soft hover:text-danger" aria-label={`Delete ${it.title}`}>
+              <button onClick={() => remove(it.id)} className="focus-ring shrink-0 rounded-full p-1 text-ink-soft hover:text-danger" aria-label={`Delete ${it.title}`}>
                 🗑️
               </button>
             </li>

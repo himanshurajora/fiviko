@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import clsx from 'clsx';
+import { playSound } from '@/lib/sound';
 
 const ITEMS = [
   { to: '/app', label: 'Home', icon: '🏠', end: true },
@@ -23,6 +24,7 @@ export function BottomNavigation() {
             <NavLink
               to={item.to}
               end={item.end}
+              onClick={() => playSound('sweep')}
               className={({ isActive }) =>
                 clsx(
                   'focus-ring flex flex-col items-center gap-0.5 py-2 text-xs font-medium transition',

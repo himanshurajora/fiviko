@@ -101,6 +101,8 @@ export async function createGoal(userId: string, input: CreateGoalInput): Promis
   // badge for long-term goals.
   await awardBadge(userId, 'FIRST_GOAL');
   if (input.type === 'LONG_TERM') await awardBadge(userId, 'DREAM_PLANNER');
+  // A new goal changes the competing set for every other goal.
+  await recomputeActiveGoals(userId);
   return toGoalDTO(goal);
 }
 
@@ -166,12 +168,48 @@ export async function updateGoal(userId: string, goalId: string, input: UpdateGo
   }
 
   const goal = await prisma.goal.update({ where: { id: goalId }, data, include: { recommendation: true } });
+  // Re-score this goal and all others (target/saved/priority changes ripple out).
+  await recomputeActiveGoals(userId);
   return toGoalDTO(goal);
 }
 
 export async function deleteGoal(userId: string, goalId: string): Promise<void> {
   await getGoal(userId, goalId);
   await prisma.goal.delete({ where: { id: goalId } });
+  // Removing a goal frees up the savings pool for the rest.
+  await recomputeActiveGoals(userId);
+}
+
+/**
+ * Records actual savings put toward a goal (in the goal's currency): increases
+ * the saved amount, marks the goal achieved when it reaches the target (awarding
+ * the Goal Achiever badge), and recomputes the savings split for the rest.
+ */
+export async function contributeToGoal(userId: string, goalId: string, amount: number): Promise<GoalDTO> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw AppError.notFound('User not found');
+  const goal = await getGoal(userId, goalId);
+  if (amount <= 0) throw AppError.badRequest('Contribution must be greater than 0');
+
+  const baseAmount = await convertCurrency(amount, goal.currency, user.baseCurrency);
+  const newSaved = dec(goal.currentSavedAmount) + amount;
+  const newBaseSaved = dec(goal.baseCurrencyCurrentSavedAmount) + baseAmount;
+  const reachedTarget = newBaseSaved >= dec(goal.baseCurrencyTargetAmount);
+
+  const updated = await prisma.goal.update({
+    where: { id: goalId },
+    data: {
+      currentSavedAmount: new Prisma.Decimal(newSaved),
+      baseCurrencyCurrentSavedAmount: new Prisma.Decimal(newBaseSaved),
+      status: reachedTarget ? GoalStatus.Achieved : goal.status,
+    },
+    include: { recommendation: true },
+  });
+
+  if (reachedTarget) await awardBadge(userId, 'GOAL_ACHIEVER');
+  // Saved money changes remaining amounts → re-split across active goals.
+  await recomputeActiveGoals(userId);
+  return toGoalDTO(updated);
 }
 
 export async function saveScoreInput(userId: string, goalId: string, input: ScoreInput): Promise<void> {
@@ -181,20 +219,47 @@ export async function saveScoreInput(userId: string, goalId: string, input: Scor
     update: input,
     create: { goalId, ...input },
   });
+  await recomputeActiveGoals(userId);
 }
 
-/** Runs the engine for a goal and persists the recommendation. */
-export async function recalculateRecommendation(userId: string, goalId: string): Promise<RecommendationResult> {
-  const ctx = await buildScoringContext(userId, goalId);
-  if (!ctx) throw AppError.badRequest('Answer the goal value questions before calculating a recommendation', { scoreInput: ['Score inputs are required'] });
-
-  const result = scorePurchase(ctx);
-  await prisma.goalRecommendation.upsert({
-    where: { goalId },
-    update: toRecommendationData(result),
-    create: { goalId, ...toRecommendationData(result) },
+/**
+ * Recomputes and persists the recommendation for EVERY active scored goal in one
+ * consistent pass. This is the single source of truth: it computes the savings
+ * split once, then scores each goal against the same financial picture and the
+ * same competing-goal allocations — so editing one goal (or the user's finances)
+ * is automatically reflected across all of them. Safe to call after any change.
+ */
+export async function recomputeActiveGoals(userId: string): Promise<void> {
+  const summary = await getFinancialSummary(userId);
+  const activeGoals = await prisma.goal.findMany({
+    where: { userId, status: GoalStatus.Active },
+    include: { scoreInput: true },
   });
-  return result;
+  const split = computeSavingsSplit(summary, activeGoals.map(toSplitInput));
+  const allocByGoal = new Map(split.allocations.map((a) => [a.goalId, a.monthlyAllocation]));
+
+  await Promise.all(
+    activeGoals.map(async (goal) => {
+      const ctx = buildContext(goal, activeGoals, summary, split.monthlySavingsPool, allocByGoal);
+      if (!ctx) return; // not yet scored
+      const result = scorePurchase(ctx);
+      await prisma.goalRecommendation.upsert({
+        where: { goalId: goal.id },
+        update: toRecommendationData(result),
+        create: { goalId: goal.id, ...toRecommendationData(result) },
+      });
+    }),
+  );
+}
+
+/** Recomputes all goals, then returns the freshly-stored recommendation for one. */
+export async function recalculateRecommendation(userId: string, goalId: string): Promise<RecommendationResult> {
+  const goal = await getGoal(userId, goalId);
+  if (!goal.scoreInput) throw AppError.badRequest('Answer the goal value questions before calculating a recommendation', { scoreInput: ['Score inputs are required'] });
+  await recomputeActiveGoals(userId);
+  const updated = await prisma.goalRecommendation.findUnique({ where: { goalId } });
+  if (!updated) throw AppError.badRequest('Could not compute a recommendation');
+  return recommendationRowToResult(updated);
 }
 
 /** What-if: score with an optional price override, without persisting (spec §15). */
@@ -207,14 +272,46 @@ export async function simulateWhatIf(userId: string, goalId: string, overrideTar
 
 // --- helpers --------------------------------------------------------------
 
+const remainingOf = (g: Goal): number =>
+  Math.max(0, dec(g.baseCurrencyTargetAmount) - dec(g.baseCurrencyCurrentSavedAmount));
+
 function toSplitInput(g: Goal & { scoreInput?: GoalScoreInput | null }): SplitGoalInput {
   return {
     id: g.id,
     name: g.name,
     category: g.category,
     priority: g.priority,
-    remaining: Math.max(0, dec(g.baseCurrencyTargetAmount) - dec(g.baseCurrencyCurrentSavedAmount)),
+    remaining: remainingOf(g),
     scores: g.scoreInput ? extractScores(g.scoreInput) : null,
+  };
+}
+
+/** Pure context builder shared by recompute (batch) and what-if (single). */
+function buildContext(
+  goal: Goal & { scoreInput?: GoalScoreInput | null },
+  activeGoals: (Goal & { scoreInput?: GoalScoreInput | null })[],
+  summary: Awaited<ReturnType<typeof getFinancialSummary>>,
+  monthlySavingsPool: number,
+  allocByGoal: Map<string, number>,
+): ScoringContext | null {
+  if (!goal.scoreInput) return null;
+  const competingGoals: CompetingGoal[] = activeGoals
+    .filter((g) => g.id !== goal.id)
+    .map((g) => ({ id: g.id, name: g.name, remaining: remainingOf(g), allocatedMonthly: allocByGoal.get(g.id) ?? 0 }))
+    .filter((g) => g.remaining > 0);
+
+  return {
+    summary,
+    scores: extractScores(goal.scoreInput),
+    targetAmount: dec(goal.baseCurrencyTargetAmount),
+    currentSaved: dec(goal.baseCurrencyCurrentSavedAmount),
+    category: goal.category as GoalCategory,
+    goalType: goal.type as GoalType,
+    targetDate: goal.targetDate,
+    monthlySavingsPool,
+    allocatedMonthly: allocByGoal.get(goal.id) ?? 0,
+    monthlyMaintenanceCost: goal.expectedMaintenanceCost != null ? dec(goal.expectedMaintenanceCost) : 0,
+    competingGoals,
   };
 }
 
@@ -236,7 +333,7 @@ function extractScores(s: GoalScoreInput): GoalScoreInputValues {
   };
 }
 
-/** Assembles the financial + goal context the engine needs. Returns null if no scores. */
+/** Assembles the context for a single goal (used by what-if). Null if unscored. */
 async function buildScoringContext(userId: string, goalId: string): Promise<ScoringContext | null> {
   const goal = await getGoal(userId, goalId);
   if (!goal.scoreInput) return null;
@@ -246,29 +343,12 @@ async function buildScoringContext(userId: string, goalId: string): Promise<Scor
     where: { userId, status: GoalStatus.Active },
     include: { scoreInput: true },
   });
-
   const split = computeSavingsSplit(summary, activeGoals.map(toSplitInput));
+  const allocByGoal = new Map(split.allocations.map((a) => [a.goalId, a.monthlyAllocation]));
 
-  const competingGoals: CompetingGoal[] = activeGoals
-    .filter((g) => g.id !== goalId)
-    .map((g) => ({
-      id: g.id,
-      name: g.name,
-      remaining: Math.max(0, dec(g.baseCurrencyTargetAmount) - dec(g.baseCurrencyCurrentSavedAmount)),
-    }))
-    .filter((g) => g.remaining > 0);
-
-  return {
-    summary,
-    scores: extractScores(goal.scoreInput),
-    targetAmount: dec(goal.baseCurrencyTargetAmount),
-    currentSaved: dec(goal.baseCurrencyCurrentSavedAmount),
-    category: goal.category as GoalCategory,
-    goalType: goal.type as GoalType,
-    targetDate: goal.targetDate,
-    monthlySavingsPool: split.monthlySavingsPool,
-    competingGoals,
-  };
+  // The current goal may itself be inactive/edge — find it in the active list or use as-is.
+  const target = activeGoals.find((g) => g.id === goalId) ?? goal;
+  return buildContext(target, activeGoals, summary, split.monthlySavingsPool, allocByGoal);
 }
 
 function toRecommendationData(r: RecommendationResult) {

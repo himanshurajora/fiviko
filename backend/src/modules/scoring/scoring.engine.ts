@@ -18,6 +18,8 @@ export interface CompetingGoal {
   name: string;
   /** Remaining amount to save, in base currency. */
   remaining: number;
+  /** This goal's monthly allocation from the savings split (base currency). */
+  allocatedMonthly: number;
 }
 
 /** Everything the engine needs to score a single purchase decision. */
@@ -30,8 +32,12 @@ export interface ScoringContext {
   category: GoalCategory;
   goalType: GoalType;
   targetDate: Date | null;
-  /** Monthly amount the user can put toward goals (from the savings-split pool). */
+  /** Total monthly amount the user can put toward all goals (the split pool). */
   monthlySavingsPool: number;
+  /** This goal's own monthly allocation from the split (base currency). */
+  allocatedMonthly: number;
+  /** Ongoing monthly running/maintenance cost this purchase would add (base currency). */
+  monthlyMaintenanceCost: number;
   /** Other active goals competing for the same savings pool / liquidity. */
   competingGoals: CompetingGoal[];
   now?: Date;
@@ -54,13 +60,19 @@ export function scorePurchase(ctx: ScoringContext): RecommendationResult {
   const { summary: s, scores, targetAmount } = ctx;
   const multiplier = CATEGORY_NET_WORTH_MULTIPLIER[ctx.category] ?? 4;
 
+  // Owning this would add ongoing running cost, lowering the surplus you keep.
+  const postPurchaseSurplus = s.monthlySurplus - ctx.monthlyMaintenanceCost;
+
   // --- Financial Safety (0–100) -------------------------------------------
   const netWorthStrength = clamp01(s.netWorth / (targetAmount * multiplier || 1)) * 100;
   const liquidMoneyStrength = clamp01(s.liquidNetWorth / (targetAmount || 1)) * 100;
-  const surplusStrength = clamp01(s.monthlyIncome > 0 ? s.monthlySurplus / (s.monthlyIncome * 0.25) : 0) * 100;
+  const surplusStrength = clamp01(s.monthlyIncome > 0 ? postPurchaseSurplus / (s.monthlyIncome * 0.25) : 0) * 100;
   const emergencyStrength = s.emergencyFundHealth * 100;
   const debtPressure = clamp01(s.debtToIncomeRatio / SAFETY_THRESHOLDS.maxHealthyDebtToIncome) * 100;
-  const overspendPenalty = s.monthlySurplus < 0 ? 100 : clamp01(s.currentMonthSpending / (Math.max(1, s.monthlySurplus) + s.currentMonthSpending)) * 100;
+  // Penalty grows as this month's spending eats into (then exceeds) the surplus.
+  // 0 when nothing spent, 100 once spending reaches/exceeds the monthly surplus.
+  const overspendPenalty =
+    s.monthlySurplus <= 0 ? 100 : clamp01(s.currentMonthSpending / s.monthlySurplus) * 100;
 
   const fw = SCORING_WEIGHTS.financialSafety;
   const financialSafetyScore = clamp(
@@ -102,7 +114,7 @@ export function scorePurchase(ctx: ScoringContext): RecommendationResult {
       scores.dreamLuxury * rw.dreamLuxury +
       scores.maintenanceBurden * rw.maintenanceBurden +
       scores.regretRisk * rw.regretRisk +
-      (s.monthlySurplus < 0 ? 100 : 0) * rw.negativeSurplus,
+      (postPurchaseSurplus < 0 ? 100 : 0) * rw.negativeSurplus,
   );
 
   // --- Goal Conflict (0–100, higher = more disruptive) --------------------
@@ -124,7 +136,7 @@ export function scorePurchase(ctx: ScoringContext): RecommendationResult {
   const breaksEmergency = liquidAfter < emergencyTarget && s.emergencyFundHealth < 0.5;
   const highCostLowNeed = scores.necessity < 30 && scores.dreamLuxury > 70 && targetAmount > s.monthlyIncome;
   const hardWarning =
-    s.monthlySurplus < 0 ||
+    postPurchaseSurplus < 0 ||
     s.debtToIncomeRatio > SAFETY_THRESHOLDS.maxHealthyDebtToIncome * 1.5 ||
     cannotCoverMandatory ||
     breaksEmergency ||
@@ -134,15 +146,24 @@ export function scorePurchase(ctx: ScoringContext): RecommendationResult {
 
   // --- Saving plan & safe budget ------------------------------------------
   const remaining = Math.max(0, targetAmount - ctx.currentSaved);
+  // What to save each month: hit the target date if one is set; otherwise use
+  // this goal's allocation from the savings split (the realistic pace given
+  // competing goals), falling back to a sensible horizon when there's no pool.
   const horizonMonths = ctx.targetDate
     ? Math.max(1, monthsBetween(now, ctx.targetDate))
     : ctx.goalType === 'SHORT_TERM'
       ? 6
       : 24;
-  const monthlySavingRequired = round(remaining / horizonMonths);
+  const monthlySavingRequired = ctx.targetDate
+    ? round(remaining / horizonMonths)
+    : ctx.allocatedMonthly > 0
+      ? round(ctx.allocatedMonthly)
+      : round(remaining / horizonMonths);
 
-  const monthsToAfford =
-    ctx.monthlySavingsPool > 0 ? Math.ceil(remaining / ctx.monthlySavingsPool) : null;
+  // Months until affordable, paced by the actual allocation (realistic), not the
+  // whole pool. Falls back to the pool if this goal isn't being allocated yet.
+  const pace = ctx.allocatedMonthly > 0 ? ctx.allocatedMonthly : ctx.monthlySavingsPool;
+  const monthsToAfford = pace > 0 ? Math.ceil(remaining / pace) : null;
   const recommendedPurchaseDate =
     recommendation === Recommendation.BuyNow
       ? now
@@ -215,8 +236,12 @@ function computeConflicts(ctx: ScoringContext, _now: Date): { goalConflictScore:
   const shortfall = Math.max(0, targetAmount - s.liquidNetWorth);
   const monthsDiverted = monthlySavingsPool > 0 ? Math.ceil(shortfall / monthlySavingsPool) : shortfall > 0 ? 36 : 0;
 
+  // While the pool is diverted to fund this purchase, each competing goal loses
+  // the contributions it would otherwise have received — i.e. *its own*
+  // allocation for that many months, not the whole pool.
   const conflicts: GoalConflict[] = competingGoals.map((g) => {
-    const reduction = g.remaining > 0 ? clamp01((monthlySavingsPool * monthsDiverted) / g.remaining) : 0;
+    const lost = g.allocatedMonthly * monthsDiverted;
+    const reduction = g.remaining > 0 ? clamp01(lost / g.remaining) : 0;
     return {
       goalId: g.id,
       goalName: g.name,

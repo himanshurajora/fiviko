@@ -25,6 +25,7 @@ export function GoalEditor({ goal, scoreInput }: { goal: GoalDTO; scoreInput: Go
     targetAmount: goal.targetAmount,
     currentSavedAmount: goal.currentSavedAmount,
     priority: goal.priority,
+    expectedMaintenanceCost: goal.expectedMaintenanceCost ?? 0,
   });
   const [scores, setScores] = useState<GoalScoreInputValues>(scoreInput ?? GOAL_SCORE_PRESETS[goal.category]);
 
@@ -36,7 +37,7 @@ export function GoalEditor({ goal, scoreInput }: { goal: GoalDTO; scoreInput: Go
     try {
       await updateGoal.mutateAsync(fields);
       await recalc.mutateAsync(); // re-score after the numbers change
-      notify.success('Goal updated');
+      notify.custom('Goal updated', { tone: 'success', icon: '✅', sound: 'save' });
       setOpenEdit(false);
     } catch (err) {
       notify.error(getErrorMessage(err, 'Could not update goal'));
@@ -69,6 +70,15 @@ export function GoalEditor({ goal, scoreInput }: { goal: GoalDTO; scoreInput: Go
                 <TextField label={`Target (${goal.currency})`} name="target" type="number" inputMode="decimal" value={fields.targetAmount || ''} onChange={(e) => setFields((f) => ({ ...f, targetAmount: Number(e.target.value) }))} />
                 <TextField label={`Saved (${goal.currency})`} name="saved" type="number" inputMode="decimal" value={fields.currentSavedAmount || ''} onChange={(e) => setFields((f) => ({ ...f, currentSavedAmount: Number(e.target.value) }))} />
               </div>
+              <TextField
+                label={`Monthly running cost (${goal.currency}, optional)`}
+                name="maintenance"
+                type="number"
+                inputMode="decimal"
+                hint="Insurance, fuel, subscriptions… reduces your post-purchase surplus."
+                value={fields.expectedMaintenanceCost || ''}
+                onChange={(e) => setFields((f) => ({ ...f, expectedMaintenanceCost: Number(e.target.value) }))}
+              />
               <div className="flex flex-col gap-1.5">
                 <span className="text-sm font-semibold text-ink">Priority</span>
                 <div className="grid grid-cols-3 gap-2">

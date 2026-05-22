@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { playSound } from '@/lib/sound';
 
 interface ExpenseModalState {
   open: boolean;
@@ -12,6 +13,9 @@ interface ExpenseModalState {
 export const useExpenseModal = create<ExpenseModalState>((set) => ({
   open: false,
   linkedGoalId: null,
-  openModal: (opts) => set({ open: true, linkedGoalId: opts?.linkedGoalId ?? null }),
+  openModal: (opts) => {
+    playSound('whoosh');
+    set({ open: true, linkedGoalId: opts?.linkedGoalId ?? null });
+  },
   closeModal: () => set({ open: false, linkedGoalId: null }),
 }));

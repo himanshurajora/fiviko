@@ -20,6 +20,7 @@ import { onboardingRouter } from './modules/onboarding/onboarding.routes.js';
 import { streaksRouter } from './modules/streaks/streaks.routes.js';
 import { challengesRouter } from './modules/challenges/challenges.routes.js';
 import { levelRouter } from './modules/level/level.routes.js';
+import { incomeHistoryRouter } from './modules/income-history/income-history.routes.js';
 
 export function createApp() {
   const app = express();
@@ -55,6 +56,7 @@ export function createApp() {
   app.use('/api/streaks', streaksRouter);
   app.use('/api/challenges', challengesRouter);
   app.use('/api/level', levelRouter);
+  app.use('/api/income-history', incomeHistoryRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -14,6 +14,7 @@ import { AppError } from '../../lib/http.js';
 import { convertCurrency } from '../../lib/currency.js';
 import { getFinancialSummary } from '../profile/profile.service.js';
 import { recordExpenseLogged } from '../streaks/streaks.service.js';
+import { incomeByMonth } from '../income-history/income-history.service.js';
 import type { CreateExpenseInput, ListQuery, SyncOfflineInput, UpdateExpenseInput } from './expenses.schema.js';
 
 const dec = (d: Prisma.Decimal | number): number => Number(d);
@@ -203,27 +204,36 @@ export async function monthlySummary(userId: string, month?: string): Promise<Mo
   };
 }
 
-/** Total base-currency spending for each of the last `months` calendar months. */
+/**
+ * Income vs spending for each of the last `months` calendar months. Income uses
+ * the user's current monthly income as a reference line (income history isn't
+ * tracked per-month in Phase 1).
+ */
 export async function expenseTrend(userId: string, months = 6): Promise<ExpenseTrendPoint[]> {
   const now = new Date();
   const span = Math.min(24, Math.max(1, months));
   const start = new Date(Date.UTC(now.getFullYear(), now.getMonth() - (span - 1), 1));
 
-  const rows = await prisma.expense.findMany({
-    where: { userId, date: { gte: start } },
-    select: { date: true, baseCurrencyAmount: true },
-  });
-
-  const totals = new Map<string, number>();
+  const monthKeys: string[] = [];
   for (let i = 0; i < span; i++) {
-    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth() - (span - 1) + i, 1));
-    totals.set(toMonthKey(d), 0);
+    monthKeys.push(toMonthKey(new Date(Date.UTC(now.getFullYear(), now.getMonth() - (span - 1) + i, 1))));
   }
+
+  const [rows, incomeMap] = await Promise.all([
+    prisma.expense.findMany({ where: { userId, date: { gte: start } }, select: { date: true, baseCurrencyAmount: true } }),
+    incomeByMonth(userId, monthKeys),
+  ]);
+
+  const totals = new Map<string, number>(monthKeys.map((k) => [k, 0]));
   for (const r of rows) {
     const key = toMonthKey(r.date);
     if (totals.has(key)) totals.set(key, (totals.get(key) ?? 0) + dec(r.baseCurrencyAmount));
   }
-  return [...totals.entries()].map(([month, total]) => ({ month, total: round2(total) }));
+  return monthKeys.map((month) => ({
+    month,
+    total: round2(totals.get(month) ?? 0),
+    income: round2(incomeMap.get(month) ?? 0),
+  }));
 }
 
 // --- helpers --------------------------------------------------------------

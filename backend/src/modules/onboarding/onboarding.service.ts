@@ -4,7 +4,7 @@ import { prisma } from '../../lib/prisma.js';
 import { AppError } from '../../lib/http.js';
 import { getFinancialSummary } from '../profile/profile.service.js';
 import { awardBadge } from '../badges/badges.service.js';
-import { recalculateRecommendation } from '../goals/goals.service.js';
+import { recomputeActiveGoals } from '../goals/goals.service.js';
 import type { OnboardingInput } from './onboarding.schema.js';
 
 const D = (n: number) => new Prisma.Decimal(n);
@@ -74,13 +74,9 @@ export async function completeOnboarding(userId: string, input: OnboardingInput)
   if (goalId) {
     const goalBadge = await awardBadge(userId, 'FIRST_GOAL');
     if (goalBadge) unlockedBadges.push(goalBadge);
-    // Compute the goal's recommendation now that scores + finances exist.
-    try {
-      await recalculateRecommendation(userId, goalId);
-    } catch {
-      /* non-fatal: recommendation can be computed lazily on first view */
-    }
   }
+  // Compute recommendations now that scores + finances exist (non-fatal).
+  await recomputeActiveGoals(userId).catch(() => undefined);
 
   const summary = await getFinancialSummary(userId);
   return { summary, healthScore: computeHealthScore(summary), unlockedBadges, goalId };

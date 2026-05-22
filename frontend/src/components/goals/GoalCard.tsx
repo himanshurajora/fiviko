@@ -5,6 +5,7 @@ import { ProgressRing } from '@/components/ui/ProgressRing';
 import { RecommendationBadge } from './RecommendationBadge';
 import { GOAL_CATEGORY_META } from '@/lib/goalMeta';
 import { formatCurrency } from '@/lib/format';
+import { playSound } from '@/lib/sound';
 
 /** Summary card for one goal: progress ring, recommendation, and saving plan. */
 export function GoalCard({ goal }: { goal: GoalDTO }) {
@@ -14,7 +15,7 @@ export function GoalCard({ goal }: { goal: GoalDTO }) {
     : 0;
 
   return (
-    <Link to={`/app/goals/${goal.id}`} className="focus-ring block rounded-3xl">
+    <Link to={`/app/goals/${goal.id}`} onClick={() => playSound('pop')} className="focus-ring block rounded-3xl">
       <Card className="transition hover:shadow-soft" padded>
         <div className="flex items-center gap-4">
           <ProgressRing value={progress} size={72} strokeWidth={8} />

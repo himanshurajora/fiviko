@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { AppError } from '../../lib/http.js';
 import {
+  contributeToGoal,
   createGoal,
   deleteGoal,
   getGoal,
@@ -67,4 +68,8 @@ export async function postRecalculate(req: Request, res: Response): Promise<void
 
 export async function postWhatIf(req: Request, res: Response): Promise<void> {
   res.json(await simulateWhatIf(userId(req), req.params.id, req.body.overrideTargetAmount));
+}
+
+export async function postContribute(req: Request, res: Response): Promise<void> {
+  res.json(await contributeToGoal(userId(req), req.params.id, req.body.amount));
 }

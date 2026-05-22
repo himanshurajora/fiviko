@@ -5,6 +5,7 @@ import { ProgressRing } from '@/components/ui/ProgressRing';
 import { PurchaseScoreCard } from '@/components/goals/PurchaseScoreCard';
 import { WhatIfSimulator } from '@/components/goals/WhatIfSimulator';
 import { GoalEditor } from '@/components/goals/GoalEditor';
+import { ContributeControl } from '@/components/goals/ContributeControl';
 import { useDeleteGoal, useGoal } from '@/lib/goals';
 import { GOAL_CATEGORY_META } from '@/lib/goalMeta';
 import { formatCurrency } from '@/lib/format';
@@ -63,6 +64,9 @@ export function GoalDetail() {
           </div>
         </div>
       </Card>
+
+      {/* Log real savings toward this goal */}
+      <ContributeControl goal={goal} />
 
       {/* Recommendation */}
       {recommendation ? (

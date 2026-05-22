@@ -1,8 +1,9 @@
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Recommendation } from '@fiviko/shared';
 import { Card } from '@/components/ui/Card';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { SpendingByCategory } from '@/components/expenses/SpendingByCategory';
+import { IncomeHistoryEditor } from '@/components/reports/IncomeHistoryEditor';
 import { useFinancialSummary } from '@/lib/queries';
 import { useExpenseTrend } from '@/lib/finances';
 import { useMonthlySummary } from '@/lib/expenses';
@@ -19,7 +20,8 @@ export function Reports() {
 
   const trendData = (trend ?? []).map((p) => ({
     label: new Date(`${p.month}-01`).toLocaleDateString(undefined, { month: 'short' }),
-    total: p.total,
+    Spent: p.total,
+    Income: p.income,
   }));
 
   const activeGoals = (goals ?? []).filter((g) => g.status === 'ACTIVE');
@@ -49,26 +51,32 @@ export function Reports() {
         </Card>
       )}
 
-      {/* Expense trend */}
+      {/* Income vs spending trend */}
       <Card padded>
-        <h3 className="font-bold text-ink">Spending trend</h3>
+        <h3 className="font-bold text-ink">Income vs spending</h3>
         <p className="text-sm text-ink-soft">Last {trendData.length} months</p>
-        <div className="mt-3 h-48">
+        <div className="mt-3 h-56">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={trendData} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+            <BarChart data={trendData} margin={{ top: 8, right: 8, bottom: 0, left: 8 }} barGap={4}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EEF0FA" />
               <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} stroke="#6B7280" />
               <YAxis tickLine={false} axisLine={false} fontSize={11} stroke="#6B7280" width={48}
                 tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`)} />
               <Tooltip
                 cursor={{ fill: 'rgba(108,99,255,0.08)' }}
-                formatter={(v: number) => [formatCurrency(v, cur), 'Spent']}
+                formatter={(v: number, name) => [formatCurrency(v, cur), name]}
                 contentStyle={{ borderRadius: 12, border: '1px solid #E5E7EB' }}
               />
-              <Bar dataKey="total" radius={[8, 8, 0, 0]} fill="#6C63FF" />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="Income" radius={[8, 8, 0, 0]} fill="#00C2A8" />
+              <Bar dataKey="Spent" radius={[8, 8, 0, 0]} fill="#6C63FF" />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </Card>
+
+      {/* Editable income history */}
+      <IncomeHistoryEditor currency={cur} months={6} />
 
       {/* Spending by category + budget */}
       {monthly && <SpendingByCategory summary={monthly} />}

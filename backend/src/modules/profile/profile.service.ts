@@ -29,9 +29,16 @@ export async function getFinancialSummary(userId: string): Promise<FinancialSumm
   ]);
 
   const totalAssets = assets.reduce((s, a) => s + dec(a.baseCurrencyAmount), 0);
-  const liquidNetWorthAssets = assets
-    .filter((a) => a.liquidityType === LiquidityType.Liquid)
-    .reduce((s, a) => s + dec(a.baseCurrencyAmount), 0);
+  // "Liquid" money available for a purchase or emergency = cash-like assets in
+  // full, plus semi-liquid assets (stocks/gold/funds) at a haircut, since they
+  // can be sold but with friction/volatility. Illiquid assets (property,
+  // vehicles) are excluded.
+  const liquidNetWorth = assets.reduce((s, a) => {
+    const amount = dec(a.baseCurrencyAmount);
+    if (a.liquidityType === LiquidityType.Liquid) return s + amount;
+    if (a.liquidityType === LiquidityType.SemiLiquid) return s + amount * SAFETY_THRESHOLDS.semiLiquidHaircut;
+    return s;
+  }, 0);
 
   const totalLiabilities = liabilities.reduce((s, l) => s + dec(l.baseCurrencyOutstandingAmount), 0);
   const monthlyDebtPayments = liabilities.reduce((s, l) => s + dec(l.baseCurrencyMonthlyPayment), 0);
@@ -43,7 +50,6 @@ export async function getFinancialSummary(userId: string): Promise<FinancialSumm
   );
 
   const netWorth = totalAssets - totalLiabilities;
-  const liquidNetWorth = liquidNetWorthAssets; // liquid assets, debts excluded for "available now"
   const monthlySurplus = monthlyIncome - monthlyMandatoryExpenses - monthlyDebtPayments;
 
   // Current calendar-month spending from the expense log.
@@ -56,7 +62,14 @@ export async function getFinancialSummary(userId: string): Promise<FinancialSumm
   });
   const currentMonthSpending = dec(spendAgg._sum.baseCurrencyAmount ?? new Prisma.Decimal(0));
 
-  const emergencyFundTarget = monthlyMandatoryExpenses * SAFETY_THRESHOLDS.emergencyFundMonths;
+  // Essential monthly cost drives the emergency-fund target. Fall back to a
+  // fraction of income when no mandatory expenses are logged, so the target
+  // never collapses to zero (which would fake a "fully funded" cushion).
+  const essentialMonthly =
+    monthlyMandatoryExpenses > 0
+      ? monthlyMandatoryExpenses
+      : monthlyIncome * SAFETY_THRESHOLDS.emergencyIncomeEssentialRate;
+  const emergencyFundTarget = essentialMonthly * SAFETY_THRESHOLDS.emergencyFundMonths;
   const emergencyFundHealth =
     emergencyFundTarget > 0 ? clamp01(liquidNetWorth / emergencyFundTarget) : 1;
 

@@ -10,6 +10,7 @@ import {
   updateExpense,
 } from './expenses.service.js';
 import { generateRecurringForUser } from './recurring.service.js';
+import { recomputeActiveGoals } from '../goals/goals.service.js';
 import { listQuerySchema } from './expenses.schema.js';
 
 function userId(req: Request): string {
@@ -18,7 +19,10 @@ function userId(req: Request): string {
 }
 
 export async function postExpense(req: Request, res: Response): Promise<void> {
-  res.status(201).json(await createExpense(userId(req), req.body));
+  const expense = await createExpense(userId(req), req.body);
+  // Spending shifts overspending/safety, which feeds goal recommendations.
+  await recomputeActiveGoals(userId(req)).catch(() => undefined);
+  res.status(201).json(expense);
 }
 
 export async function getExpenses(req: Request, res: Response): Promise<void> {
@@ -46,7 +50,9 @@ export async function removeExpense(req: Request, res: Response): Promise<void> 
 }
 
 export async function postSyncOffline(req: Request, res: Response): Promise<void> {
-  res.json(await syncOffline(userId(req), req.body));
+  const result = await syncOffline(userId(req), req.body);
+  await recomputeActiveGoals(userId(req)).catch(() => undefined);
+  res.json(result);
 }
 
 export async function postGenerateRecurring(req: Request, res: Response): Promise<void> {

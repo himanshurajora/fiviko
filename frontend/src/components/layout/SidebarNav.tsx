@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '@/store/auth';
+import { playSound } from '@/lib/sound';
 
 const ITEMS = [
   { to: '/app', label: 'Dashboard', icon: '🏠', end: true },
@@ -38,6 +39,7 @@ export function SidebarNav() {
               <NavLink
                 to={item.to}
                 end={item.end}
+                onClick={() => playSound('sweep')}
                 className={({ isActive }) =>
                   clsx(
                     'focus-ring flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition',

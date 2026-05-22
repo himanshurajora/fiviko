@@ -61,6 +61,8 @@ export interface UpdateGoalPayload {
   targetAmount?: number;
   currentSavedAmount?: number;
   priority?: GoalPriority;
+  /** Ongoing monthly running cost the goal would add. */
+  expectedMaintenanceCost?: number | null;
 }
 
 export function useUpdateGoal(goalId: string) {
@@ -110,6 +112,21 @@ export function useRecalculate(goalId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['goals'] });
       void qc.invalidateQueries({ queryKey: ['goals', goalId] });
+    },
+  });
+}
+
+/** Records actual savings put toward a goal (in the goal's currency). */
+export function useContribute(goalId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (amount: number): Promise<GoalDTO> =>
+      (await api.post(`/goals/${goalId}/contribute`, { amount })).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['goals'] });
+      void qc.invalidateQueries({ queryKey: ['goals', goalId] });
+      void qc.invalidateQueries({ queryKey: ['badges'] });
+      void qc.invalidateQueries({ queryKey: ['level'] });
     },
   });
 }

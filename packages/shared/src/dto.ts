@@ -133,6 +133,14 @@ export interface MandatoryExpenseDTO {
   updatedAt: string;
 }
 
+/** A recorded month of income (spec §16). Editable for variable-income months. */
+export interface IncomeHistoryEntry {
+  /** YYYY-MM */
+  month: string;
+  amount: number;
+  source: 'auto' | 'manual';
+}
+
 /** Single-shot payload submitted at the end of the gamified onboarding (spec §8.2). */
 export interface OnboardingPayload {
   baseCurrency: string;
@@ -175,11 +183,14 @@ export interface ExpenseDTO {
   createdAt: string;
 }
 
-/** One point on the multi-month spending trend (spec §16). */
+/** One point on the multi-month income-vs-spending trend (spec §16). */
 export interface ExpenseTrendPoint {
   /** YYYY-MM */
   month: string;
+  /** Total spending logged that month (base currency). */
   total: number;
+  /** Monthly income reference for that month (base currency). */
+  income: number;
 }
 
 /** Spending rollup for one calendar month (spec §8.4). Amounts in base currency. */
