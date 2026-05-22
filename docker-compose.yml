@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fiviko-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fiviko
+      POSTGRES_PASSWORD: fiviko
+      POSTGRES_DB: fiviko
+    ports:
+      # Host port 5544 to avoid clashing with other local Postgres instances.
+      - "5544:5432"
+    volumes:
+      - fiviko_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fiviko -d fiviko"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  fiviko_pgdata:

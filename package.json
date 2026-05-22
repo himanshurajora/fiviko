@@ -1,0 +1,27 @@
+{
+  "name": "fiviko",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Fiviko — a gamified financial tracking & purchase-decision PWA (Phase 1 MVP)",
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "shared:build": "npm run build -w @fiviko/shared",
+    "backend:dev": "npm run dev -w @fiviko/backend",
+    "frontend:dev": "npm run dev -w @fiviko/frontend",
+    "dev": "npm run shared:build && concurrently -n backend,frontend -c blue,magenta \"npm run backend:dev\" \"npm run frontend:dev\"",
+    "prisma:migrate": "npm run prisma:migrate -w @fiviko/backend",
+    "prisma:seed": "npm run prisma:seed -w @fiviko/backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

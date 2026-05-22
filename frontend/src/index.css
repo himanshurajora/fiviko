@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-ink font-sans antialiased;
+    /* Respect device safe areas (notches) for the installed PWA. */
+    padding-top: env(safe-area-inset-top);
+  }
+  /* Honor the user's reduced-motion preference (accessibility, spec §18). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-3xl bg-surface shadow-card;
+  }
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2;
+  }
+}

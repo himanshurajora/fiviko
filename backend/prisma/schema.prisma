@@ -1,0 +1,445 @@
+// Fiviko — Prisma schema (Phase 1 MVP). See fiviko.md §19.
+// Enum string values mirror the union types in @fiviko/shared.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum FinancialPersonality {
+  CAREFUL_SAVER
+  BALANCED_PLANNER
+  DREAM_BUILDER
+  AGGRESSIVE_ACHIEVER
+}
+
+enum AssetType {
+  BANK_BALANCE
+  CASH
+  GOLD
+  STOCKS
+  MUTUAL_FUNDS
+  CRYPTO
+  PROPERTY
+  VEHICLE
+  BUSINESS_ASSET
+  OTHER
+}
+
+enum LiquidityType {
+  LIQUID
+  SEMI_LIQUID
+  ILLIQUID
+}
+
+enum LiabilityType {
+  PERSONAL_LOAN
+  EDUCATION_LOAN
+  CREDIT_CARD_DEBT
+  VEHICLE_LOAN
+  HOME_LOAN
+  BORROWED_MONEY
+  OTHER
+}
+
+enum IncomeType {
+  SALARY
+  FREELANCE
+  BUSINESS
+  PASSIVE_INCOME
+  OTHER
+}
+
+enum Frequency {
+  MONTHLY
+  YEARLY
+  ONE_TIME
+}
+
+enum MandatoryExpenseCategory {
+  RENT
+  INSURANCE
+  FOOD
+  GROCERIES
+  TRAVEL
+  EDUCATION
+  SUBSCRIPTIONS
+  UTILITIES
+  LOAN_EMI
+  OTHER
+}
+
+enum ExpenseCategory {
+  FOOD
+  GROCERIES
+  TRANSPORT
+  SHOPPING
+  ENTERTAINMENT
+  HEALTH
+  BILLS
+  EDUCATION
+  TRAVEL
+  SUBSCRIPTIONS
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+  BANK_TRANSFER
+  WALLET
+  OTHER
+}
+
+enum NeedOrWant {
+  NEED
+  WANT
+}
+
+enum SyncStatus {
+  SYNCED
+  PENDING
+}
+
+enum GoalType {
+  SHORT_TERM
+  LONG_TERM
+}
+
+enum GoalCategory {
+  HOUSE
+  CAR
+  BIKE
+  LAPTOP
+  PHONE
+  EDUCATION
+  BUSINESS_EQUIPMENT
+  TRAVEL
+  HEALTH
+  FAMILY
+  HOBBY
+  LUXURY
+  EMERGENCY_FUND
+  OTHER
+}
+
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  PAUSED
+  ABANDONED
+}
+
+enum GoalPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum Recommendation {
+  BUY_NOW
+  WAIT
+  REDUCE_BUDGET
+  NOT_RECOMMENDED
+  HARD_WARNING
+}
+
+enum StreakType {
+  SAVING
+  EXPENSE_LOGGING
+  UNDER_BUDGET
+  NO_IMPULSE
+}
+
+enum ChallengeType {
+  DAILY
+  MONTHLY
+}
+
+enum UserChallengeStatus {
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id                   String                @id @default(cuid())
+  name                 String
+  email                String                @unique
+  passwordHash         String
+  baseCurrency         String                @default("USD")
+  financialPersonality FinancialPersonality?
+  onboardingCompleted  Boolean               @default(false)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  assets            Asset[]
+  liabilities       Liability[]
+  incomes           Income[]
+  mandatoryExpenses MandatoryExpense[]
+  expenses          Expense[]
+  goals             Goal[]
+  badges            UserBadge[]
+  streaks           Streak[]
+  challenges        UserChallenge[]
+}
+
+model Asset {
+  id                 String        @id @default(cuid())
+  userId             String
+  type               AssetType
+  name               String
+  amount             Decimal       @db.Decimal(18, 2)
+  currency           String
+  baseCurrencyAmount Decimal       @db.Decimal(18, 2)
+  liquidityType      LiquidityType @default(LIQUID)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Liability {
+  id                          String        @id @default(cuid())
+  userId                      String
+  type                        LiabilityType
+  name                        String
+  outstandingAmount           Decimal       @db.Decimal(18, 2)
+  monthlyPayment              Decimal       @db.Decimal(18, 2)
+  currency                    String
+  baseCurrencyOutstandingAmount Decimal     @db.Decimal(18, 2)
+  baseCurrencyMonthlyPayment  Decimal       @db.Decimal(18, 2)
+  interestRate                Float?
+  createdAt                   DateTime      @default(now())
+  updatedAt                   DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Income {
+  id                 String     @id @default(cuid())
+  userId             String
+  type               IncomeType
+  amount             Decimal    @db.Decimal(18, 2)
+  currency           String
+  baseCurrencyAmount Decimal    @db.Decimal(18, 2)
+  frequency          Frequency  @default(MONTHLY)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model MandatoryExpense {
+  id                 String                   @id @default(cuid())
+  userId             String
+  category           MandatoryExpenseCategory
+  amount             Decimal                  @db.Decimal(18, 2)
+  currency           String
+  baseCurrencyAmount Decimal                  @db.Decimal(18, 2)
+  frequency          Frequency                @default(MONTHLY)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Expense {
+  id                 String          @id @default(cuid())
+  userId             String
+  amount             Decimal         @db.Decimal(18, 2)
+  currency           String
+  baseCurrencyAmount Decimal         @db.Decimal(18, 2)
+  category           ExpenseCategory
+  note               String?
+  date               DateTime        @default(now())
+  paymentMethod      PaymentMethod   @default(CASH)
+  isRecurring        Boolean         @default(false)
+  needOrWant         NeedOrWant      @default(NEED)
+  linkedGoalId       String?
+  syncStatus         SyncStatus      @default(SYNCED)
+  /// Stable client-generated id used to de-duplicate offline-synced entries.
+  clientId           String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  user        User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedGoal  Goal? @relation(fields: [linkedGoalId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, clientId])
+  @@index([userId, date])
+}
+
+model Goal {
+  id                             String       @id @default(cuid())
+  userId                         String
+  name                           String
+  type                           GoalType
+  category                       GoalCategory
+  targetAmount                   Decimal      @db.Decimal(18, 2)
+  currency                       String
+  baseCurrencyTargetAmount       Decimal      @db.Decimal(18, 2)
+  currentSavedAmount             Decimal      @default(0) @db.Decimal(18, 2)
+  baseCurrencyCurrentSavedAmount Decimal      @default(0) @db.Decimal(18, 2)
+  targetDate                     DateTime?
+  priority                       GoalPriority @default(MEDIUM)
+  expectedMaintenanceCost        Decimal?     @db.Decimal(18, 2)
+  expectedResaleValue            Decimal?     @db.Decimal(18, 2)
+  isReplacingExistingItem        Boolean      @default(false)
+  notes                          String?
+  status                         GoalStatus   @default(ACTIVE)
+  createdAt                      DateTime     @default(now())
+  updatedAt                      DateTime     @updatedAt
+
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scoreInput     GoalScoreInput?
+  recommendation GoalRecommendation?
+  linkedExpenses Expense[]
+
+  @@index([userId])
+}
+
+model GoalScoreInput {
+  id                 String   @id @default(cuid())
+  goalId             String   @unique
+  incomeImpact       Int
+  productivity       Int
+  happiness          Int
+  necessity          Int
+  urgency            Int
+  dreamLuxury        Int
+  timeSaving         Int
+  frequencyOfUse     Int
+  careerGrowth       Int
+  healthWellbeing    Int
+  familySocialImpact Int
+  regretRisk         Int
+  maintenanceBurden  Int
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+}
+
+model GoalRecommendation {
+  id                      String         @id @default(cuid())
+  goalId                  String         @unique
+  purchaseReadinessScore  Float
+  financialSafetyScore    Float
+  personalValueScore      Float
+  futureBenefitScore      Float
+  riskScore               Float
+  goalConflictScore       Float
+  recommendation          Recommendation
+  safeBudgetMin           Decimal        @db.Decimal(18, 2)
+  safeBudgetMax           Decimal        @db.Decimal(18, 2)
+  recommendedPurchaseDate DateTime?
+  monthlySavingRequired   Decimal        @db.Decimal(18, 2)
+  explanation             String
+  /// JSON blob of ScoreFactor[] and GoalConflict[] for the detail view.
+  breakdown               Json?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+}
+
+model Badge {
+  id              String      @id @default(cuid())
+  /// Stable code used by seed + unlock logic (e.g. FIRST_GOAL).
+  code            String      @unique
+  name            String
+  description     String
+  icon            String
+  unlockCondition String
+  createdAt       DateTime    @default(now())
+
+  users      UserBadge[]
+  challenges Challenge[]
+}
+
+model UserBadge {
+  id         String   @id @default(cuid())
+  userId     String
+  badgeId    String
+  unlockedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+}
+
+model Streak {
+  id            String     @id @default(cuid())
+  userId        String
+  type          StreakType
+  currentCount  Int        @default(0)
+  longestCount  Int        @default(0)
+  lastUpdatedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+}
+
+model Challenge {
+  id            String        @id @default(cuid())
+  code          String        @unique
+  title         String
+  description   String
+  type          ChallengeType
+  targetValue   Float
+  rewardBadgeId String?
+  createdAt     DateTime      @default(now())
+
+  rewardBadge Badge?          @relation(fields: [rewardBadgeId], references: [id], onDelete: SetNull)
+  users       UserChallenge[]
+}
+
+model UserChallenge {
+  id          String              @id @default(cuid())
+  userId      String
+  challengeId String
+  progress    Float               @default(0)
+  status      UserChallengeStatus @default(IN_PROGRESS)
+  startedAt   DateTime            @default(now())
+  completedAt DateTime?
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, challengeId])
+}
+
+model CurrencyRate {
+  id           String   @id @default(cuid())
+  fromCurrency String
+  toCurrency   String
+  rate         Float
+  source       String   @default("manual")
+  updatedAt    DateTime @updatedAt
+
+  @@unique([fromCurrency, toCurrency])
+}
