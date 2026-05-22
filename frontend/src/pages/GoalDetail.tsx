@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { PurchaseScoreCard } from '@/components/goals/PurchaseScoreCard';
 import { WhatIfSimulator } from '@/components/goals/WhatIfSimulator';
+import { GoalEditor } from '@/components/goals/GoalEditor';
 import { useDeleteGoal, useGoal } from '@/lib/goals';
 import { GOAL_CATEGORY_META } from '@/lib/goalMeta';
 import { formatCurrency } from '@/lib/format';
@@ -27,7 +28,7 @@ export function GoalDetail() {
     return <p className="text-ink-soft">Couldn’t load this goal.</p>;
   }
 
-  const { goal, recommendation } = data;
+  const { goal, recommendation, scoreInput } = data;
   const meta = GOAL_CATEGORY_META[goal.category];
   const progress = goal.baseCurrencyTargetAmount > 0 ? goal.baseCurrencyCurrentSavedAmount / goal.baseCurrencyTargetAmount : 0;
 
@@ -74,6 +75,9 @@ export function GoalDetail() {
 
       {/* What-if */}
       <WhatIfSimulator goal={goal} />
+
+      {/* Edit fields & adjust scores */}
+      <GoalEditor goal={goal} scoreInput={scoreInput} />
 
       <Button variant="ghost" fullWidth onClick={onDelete} className="text-danger">
         Delete goal

@@ -3,8 +3,12 @@ import { useAuth } from '@/store/auth';
 import { useExpenseModal } from '@/store/expenseModal';
 import { useFinancialSummary } from '@/lib/queries';
 import { useChallenges, useLevel, useStreaks } from '@/lib/gamification';
+import { useGoals } from '@/lib/goals';
+import { useBadges } from '@/lib/badges';
 import { FinancialHealthCard } from '@/components/dashboard/FinancialHealthCard';
 import { StatCard } from '@/components/dashboard/StatCard';
+import { GoalsOverview } from '@/components/dashboard/GoalsOverview';
+import { BadgeProgressCard } from '@/components/dashboard/BadgeProgressCard';
 import { StreakCard } from '@/components/gamification/StreakCard';
 import { ChallengeCard } from '@/components/gamification/ChallengeCard';
 import { LevelBadge } from '@/components/gamification/LevelBadge';
@@ -19,6 +23,8 @@ export function Dashboard() {
   const { data: streaks } = useStreaks();
   const { data: challenges } = useChallenges();
   const { data: level } = useLevel();
+  const { data: goals } = useGoals();
+  const { data: badges } = useBadges();
   const currency = summary?.baseCurrency ?? user?.baseCurrency ?? 'USD';
 
   const loggingStreak = streaks?.find((s) => s.type === StreakType.ExpenseLogging);
@@ -64,17 +70,23 @@ export function Dashboard() {
                 label="This month spent"
                 icon="🧾"
                 value={formatCurrency(summary.currentMonthSpending, currency)}
+                animatedValue={summary.currentMonthSpending}
+                format={(n) => formatCurrency(n, currency)}
               />
               <StatCard
                 label="Safe to spend"
                 icon="🛟"
                 tone={summary.safeRemainingSpend > 0 ? 'success' : 'danger'}
                 value={formatCurrency(summary.safeRemainingSpend, currency)}
+                animatedValue={summary.safeRemainingSpend}
+                format={(n) => formatCurrency(n, currency)}
               />
               <StatCard
                 label="Liquid money"
                 icon="💧"
                 value={formatCurrency(summary.liquidNetWorth, currency)}
+                animatedValue={summary.liquidNetWorth}
+                format={(n) => formatCurrency(n, currency)}
               />
               <StatCard
                 label="Emergency fund"
@@ -95,6 +107,9 @@ export function Dashboard() {
             {loggingStreak && <StreakCard streak={loggingStreak} />}
           </div>
 
+          {/* Goals overview (spec §13). */}
+          {goals && <GoalsOverview goals={goals} />}
+
           {dailyChallenges.length > 0 && (
             <section>
               <h2 className="mb-2 text-lg font-extrabold text-ink">Today’s challenges 🎯</h2>
@@ -105,6 +120,9 @@ export function Dashboard() {
               </div>
             </section>
           )}
+
+          {/* Badge progress (spec §13). */}
+          {badges && badges.length > 0 && <BadgeProgressCard badges={badges} />}
         </>
       )}
 

@@ -56,6 +56,26 @@ export function useCreateGoal() {
   });
 }
 
+export interface UpdateGoalPayload {
+  name?: string;
+  targetAmount?: number;
+  currentSavedAmount?: number;
+  priority?: GoalPriority;
+}
+
+export function useUpdateGoal(goalId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: UpdateGoalPayload): Promise<GoalDTO> =>
+      (await api.put(`/goals/${goalId}`, payload)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['goals'] });
+      void qc.invalidateQueries({ queryKey: ['goals', goalId] });
+      void qc.invalidateQueries({ queryKey: ['level'] });
+    },
+  });
+}
+
 export function useDeleteGoal() {
   const qc = useQueryClient();
   return useMutation({
@@ -74,6 +94,19 @@ export function useSaveScoreInput(goalId: string) {
   return useMutation({
     mutationFn: async (scores: GoalScoreInputValues): Promise<RecommendationResult> =>
       (await api.post(`/goals/${goalId}/score-inputs`, scores)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['goals'] });
+      void qc.invalidateQueries({ queryKey: ['goals', goalId] });
+    },
+  });
+}
+
+/** Re-runs the decision engine for a goal (after editing its fields/finances). */
+export function useRecalculate(goalId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<RecommendationResult> =>
+      (await api.post(`/goals/${goalId}/recalculate`)).data,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['goals'] });
       void qc.invalidateQueries({ queryKey: ['goals', goalId] });

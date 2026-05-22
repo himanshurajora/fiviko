@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { ProfileSection, type AddFormValue, type ProfileItem } from '@/components/settings/ProfileSection';
 import { LevelBadge } from '@/components/gamification/LevelBadge';
 import { useLevel } from '@/lib/gamification';
+import { useSound, playSound } from '@/lib/sound';
 import { useAuth } from '@/store/auth';
 import {
   useAssetMutations,
@@ -45,7 +46,14 @@ export function Profile() {
   const liabilityM = useLiabilityMutations();
 
   const { data: level } = useLevel();
+  const soundEnabled = useSound((s) => s.enabled);
+  const toggleSound = useSound((s) => s.toggle);
   const personality = PERSONALITY_OPTIONS.find((p) => p.value === user?.financialPersonality);
+
+  function onToggleSound() {
+    toggleSound();
+    if (!soundEnabled) playSound('success'); // preview when turning on
+  }
 
   async function onLogout() {
     await logout();
@@ -135,6 +143,26 @@ export function Profile() {
         onAdd={(v) => liabilityM.create.mutateAsync({ type: v.key as never, name: v.name || labelOf(LIABILITY_OPTIONS, v.key), outstandingAmount: v.amount, monthlyPayment: v.amount2, currency: cur })}
         onDelete={(id) => liabilityM.remove.mutate(id)}
       />
+
+      {/* Preferences */}
+      <Card padded animate={false}>
+        <h2 className="font-bold text-ink">Preferences</h2>
+        <div className="mt-3 flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-ink">Sound effects 🔊</p>
+            <p className="text-xs text-ink-soft">Playful cues when you log, save and level up.</p>
+          </div>
+          <button
+            role="switch"
+            aria-checked={soundEnabled}
+            aria-label="Toggle sound effects"
+            onClick={onToggleSound}
+            className={`focus-ring relative h-7 w-12 rounded-full transition-colors ${soundEnabled ? 'bg-primary' : 'bg-muted-border'}`}
+          >
+            <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${soundEnabled ? 'left-[1.375rem]' : 'left-0.5'}`} />
+          </button>
+        </div>
+      </Card>
 
       {/* Legal */}
       <Card padded animate={false}>

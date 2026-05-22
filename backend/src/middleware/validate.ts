@@ -4,25 +4,14 @@ import type { ZodTypeAny, z } from 'zod';
 /**
  * Validates `req.body` against a Zod schema and replaces it with the parsed,
  * typed result. Throws a ZodError on failure, handled by the error middleware.
+ *
+ * Query strings are validated directly in the controllers that need them
+ * (`schema.parse(req.query)`), since Express's `req.query` is read-only in some
+ * setups and doesn't tolerate reassignment from middleware.
  */
 export function validateBody<T extends ZodTypeAny>(schema: T): RequestHandler {
   return (req, _res, next) => {
     req.body = schema.parse(req.body) as z.infer<T>;
     next();
   };
-}
-
-/** Validates and coerces `req.query` against a Zod schema. */
-export function validateQuery<T extends ZodTypeAny>(schema: T): RequestHandler {
-  return (req, _res, next) => {
-    res_locals_query(req, schema.parse(req.query));
-    next();
-  };
-}
-
-// Express 4 makes req.query a getter-only property in some setups; stash the
-// validated query on res.locals to avoid reassignment errors.
-function res_locals_query(req: { query: unknown }, value: unknown) {
-  (req as { validatedQuery?: unknown }).validatedQuery = value;
-  req.query = value as typeof req.query;
 }

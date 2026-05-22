@@ -118,6 +118,37 @@ export const SAFETY_THRESHOLDS = {
   minLiquidityMonthsAfterPurchase: 3,
 } as const;
 
+/**
+ * Smart 1–100 score defaults per goal category. Lets a goal be created (and
+ * scored) with zero slider work — used by the create flow and to auto-seed the
+ * onboarding goal. Each profile encodes the typical character of the category.
+ */
+const NEUTRAL_SCORES: GoalScoreInputValues = {
+  incomeImpact: 50, productivity: 50, happiness: 50, necessity: 50, urgency: 50,
+  dreamLuxury: 50, timeSaving: 50, frequencyOfUse: 50, careerGrowth: 50,
+  healthWellbeing: 50, familySocialImpact: 50, regretRisk: 50, maintenanceBurden: 50,
+};
+
+const withScores = (p: Partial<GoalScoreInputValues>): GoalScoreInputValues => ({ ...NEUTRAL_SCORES, ...p });
+
+/** Keyed by GoalCategory string value (see enums.ts). */
+export const CATEGORY_SCORE_PRESETS: Record<string, GoalScoreInputValues> = {
+  LAPTOP: withScores({ incomeImpact: 75, productivity: 88, necessity: 70, timeSaving: 72, frequencyOfUse: 92, careerGrowth: 78, dreamLuxury: 25, regretRisk: 18, maintenanceBurden: 25, happiness: 55, healthWellbeing: 30, familySocialImpact: 25 }),
+  PHONE: withScores({ incomeImpact: 40, productivity: 62, happiness: 65, necessity: 65, frequencyOfUse: 95, dreamLuxury: 45, careerGrowth: 40, familySocialImpact: 50, regretRisk: 35, maintenanceBurden: 30, healthWellbeing: 30 }),
+  HOUSE: withScores({ happiness: 85, necessity: 90, frequencyOfUse: 100, familySocialImpact: 85, healthWellbeing: 60, maintenanceBurden: 70, dreamLuxury: 50, careerGrowth: 25, regretRisk: 30, incomeImpact: 40, productivity: 40 }),
+  CAR: withScores({ timeSaving: 82, frequencyOfUse: 90, necessity: 65, happiness: 65, maintenanceBurden: 72, dreamLuxury: 50, familySocialImpact: 55, productivity: 55, regretRisk: 40, incomeImpact: 35 }),
+  BIKE: withScores({ timeSaving: 78, frequencyOfUse: 85, necessity: 55, happiness: 62, maintenanceBurden: 50, healthWellbeing: 50, dreamLuxury: 45, regretRisk: 35, productivity: 45, incomeImpact: 30 }),
+  EDUCATION: withScores({ incomeImpact: 78, productivity: 70, necessity: 70, careerGrowth: 92, dreamLuxury: 15, regretRisk: 18, maintenanceBurden: 15, happiness: 60, frequencyOfUse: 60 }),
+  BUSINESS_EQUIPMENT: withScores({ incomeImpact: 85, productivity: 86, necessity: 75, timeSaving: 75, frequencyOfUse: 85, careerGrowth: 70, dreamLuxury: 20, regretRisk: 22, maintenanceBurden: 40, happiness: 45 }),
+  TRAVEL: withScores({ happiness: 92, dreamLuxury: 70, familySocialImpact: 72, necessity: 25, frequencyOfUse: 20, incomeImpact: 12, productivity: 18, timeSaving: 12, careerGrowth: 22, regretRisk: 45, maintenanceBurden: 10, healthWellbeing: 55 }),
+  HEALTH: withScores({ healthWellbeing: 95, necessity: 82, happiness: 72, urgency: 68, frequencyOfUse: 70, dreamLuxury: 12, regretRisk: 18, familySocialImpact: 50, incomeImpact: 20, productivity: 45 }),
+  FAMILY: withScores({ familySocialImpact: 92, happiness: 82, necessity: 65, healthWellbeing: 55, frequencyOfUse: 60, dreamLuxury: 35, regretRisk: 25, incomeImpact: 20, productivity: 25 }),
+  HOBBY: withScores({ happiness: 85, dreamLuxury: 60, frequencyOfUse: 60, necessity: 25, regretRisk: 45, maintenanceBurden: 45, healthWellbeing: 48, incomeImpact: 15, productivity: 28 }),
+  LUXURY: withScores({ dreamLuxury: 95, happiness: 82, necessity: 10, urgency: 15, frequencyOfUse: 35, regretRisk: 65, maintenanceBurden: 55, incomeImpact: 10, productivity: 10, careerGrowth: 10, healthWellbeing: 15 }),
+  EMERGENCY_FUND: withScores({ necessity: 95, urgency: 72, healthWellbeing: 60, familySocialImpact: 60, dreamLuxury: 5, regretRisk: 8, maintenanceBurden: 5, frequencyOfUse: 30, happiness: 45, incomeImpact: 20, productivity: 20, careerGrowth: 10, timeSaving: 10 }),
+  OTHER: NEUTRAL_SCORES,
+};
+
 /** Net-worth affordability multipliers per goal category (spec §10). */
 export const CATEGORY_NET_WORTH_MULTIPLIER: Record<string, number> = {
   HOUSE: 3,

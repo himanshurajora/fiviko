@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { NeedOrWant, PaymentMethod, type ExpenseCategory } from '@fiviko/shared';
 import { Button } from '@/components/ui/Button';
 import { useAddExpense } from '@/lib/expenses';
+import { notify } from '@/store/toast';
 import { useExpenseModal } from '@/store/expenseModal';
 import { useAuth } from '@/store/auth';
 import {
@@ -43,26 +44,40 @@ export function AddExpenseModal() {
     }
   }, [open, baseCurrency]);
 
+  // Close on Escape (accessibility).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeModal();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, closeModal]);
+
   async function save() {
     const value = Number(amount);
     if (!value || value <= 0) {
       setFeedback('Enter an amount first');
       return;
     }
-    const result = await addExpense.mutateAsync({
-      amount: value,
-      currency,
-      category,
-      needOrWant,
-      paymentMethod,
-      note: note.trim() || null,
-      linkedGoalId,
-    });
-    if (result.offline) {
-      setFeedback('Saved offline — will sync when you’re back online ✓');
-      setTimeout(closeModal, 900);
-    } else {
+    try {
+      const result = await addExpense.mutateAsync({
+        amount: value,
+        currency,
+        category,
+        needOrWant,
+        paymentMethod,
+        note: note.trim() || null,
+        linkedGoalId,
+      });
+      if (result.offline) {
+        notify.custom('Saved offline — will sync later', { tone: 'info', icon: '📥', sound: 'tap' });
+      } else {
+        notify.custom('Expense added', { tone: 'success', icon: '💸', sound: 'coin' });
+      }
       closeModal();
+    } catch {
+      notify.error('Could not save expense');
     }
   }
 

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   GoalPriority,
   GoalType,
@@ -14,13 +14,13 @@ import { Card } from '@/components/ui/Card';
 import { SliderQuestion } from '@/components/goals/SliderQuestion';
 import { useAuth } from '@/store/auth';
 import { useCreateGoal, type CreateGoalPayload } from '@/lib/goals';
-import { GOAL_CATEGORY_OPTIONS, GOAL_PRIORITY_OPTIONS, GOAL_TYPE_OPTIONS } from '@/lib/goalMeta';
+import { GOAL_CATEGORY_META, GOAL_CATEGORY_OPTIONS, GOAL_PRIORITY_OPTIONS, GOAL_TYPE_OPTIONS } from '@/lib/goalMeta';
+import { GOAL_SCORE_PRESETS } from '@/lib/goalPresets';
 import { SUPPORTED_CURRENCIES } from '@/lib/currencies';
 import { api, getErrorMessage } from '@/lib/api';
+import { notify } from '@/store/toast';
 
-const DEFAULT_SCORES: GoalScoreInputValues = Object.fromEntries(
-  SCORE_QUESTIONS.map((q) => [q.key, 50]),
-) as unknown as GoalScoreInputValues;
+const DEFAULT_CATEGORY = 'LAPTOP' as GoalCategory;
 
 export function AddGoal() {
   const navigate = useNavigate();
@@ -32,7 +32,7 @@ export function AddGoal() {
   const [details, setDetails] = useState<CreateGoalPayload>({
     name: '',
     type: GoalType.ShortTerm,
-    category: 'LAPTOP' as GoalCategory,
+    category: DEFAULT_CATEGORY,
     targetAmount: 0,
     currency: user?.baseCurrency ?? 'USD',
     currentSavedAmount: 0,
@@ -41,10 +41,24 @@ export function AddGoal() {
     expectedMaintenanceCost: null,
     notes: null,
   });
-  const [scores, setScores] = useState<GoalScoreInputValues>(DEFAULT_SCORES);
+  // Scores start from the category preset; presets keep updating it until the
+  // user chooses to hand-tune the sliders.
+  const [scores, setScores] = useState<GoalScoreInputValues>(GOAL_SCORE_PRESETS[DEFAULT_CATEGORY]);
+  const [fineTuned, setFineTuned] = useState(false);
+  const [showFineTune, setShowFineTune] = useState(false);
 
   const set = <K extends keyof CreateGoalPayload>(key: K, value: CreateGoalPayload[K]) =>
     setDetails((d) => ({ ...d, [key]: value }));
+
+  function selectCategory(category: GoalCategory) {
+    set('category', category);
+    if (!fineTuned) setScores(GOAL_SCORE_PRESETS[category]);
+  }
+
+  function updateScore(key: keyof GoalScoreInputValues, value: number) {
+    setFineTuned(true);
+    setScores((s) => ({ ...s, [key]: value }));
+  }
 
   function goToScores(e: FormEvent) {
     e.preventDefault();
@@ -64,9 +78,12 @@ export function AddGoal() {
     try {
       const goal = await createGoal.mutateAsync(details);
       await api.post(`/goals/${goal.id}/score-inputs`, scores);
+      notify.success('Goal created 🎯');
       navigate(`/app/goals/${goal.id}`, { replace: true });
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create goal'));
+      const message = getErrorMessage(err, 'Could not create goal');
+      setError(message);
+      notify.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -99,7 +116,7 @@ export function AddGoal() {
                 <button
                   type="button"
                   key={c.value}
-                  onClick={() => set('category', c.value)}
+                  onClick={() => selectCategory(c.value)}
                   className={`focus-ring flex flex-col items-center gap-1 rounded-2xl border p-2 text-xs transition ${
                     details.category === c.value ? 'border-primary bg-primary/10 text-primary' : 'border-muted-border text-ink-soft'
                   }`}
@@ -163,22 +180,51 @@ export function AddGoal() {
           </div>
 
           {error && <p className="text-sm font-medium text-danger">{error}</p>}
-          <Button type="submit" size="lg" fullWidth>Next: how much does it matter?</Button>
+          <Button type="submit" size="lg" fullWidth>Next →</Button>
         </motion.form>
       )}
 
       {step === 2 && (
         <motion.div initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} className="flex flex-col gap-3">
-          <Card padded className="bg-primary/5">
-            <p className="text-sm text-ink-soft">
-              Slide to rate each factor from 1–100. Honest answers give you a better recommendation.
-            </p>
+          <Card padded className="flex items-center gap-3 bg-primary/5">
+            <span className="text-3xl" aria-hidden>{GOAL_CATEGORY_META[details.category].emoji}</span>
+            <div>
+              <p className="font-bold text-ink">Smart defaults ready ✨</p>
+              <p className="text-sm text-ink-soft">
+                We’ve pre-filled how a <strong>{GOAL_CATEGORY_META[details.category].label.toLowerCase()}</strong> goal
+                typically scores. Just create it — or fine-tune below.
+              </p>
+            </div>
           </Card>
-          <div className="grid gap-3 md:grid-cols-2">
-            {SCORE_QUESTIONS.map((q) => (
-              <SliderQuestion key={q.key} question={q} value={scores[q.key]} onChange={(v) => setScores((s) => ({ ...s, [q.key]: v }))} />
-            ))}
-          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowFineTune((v) => !v)}
+            className="focus-ring flex items-center justify-between rounded-2xl border border-muted-border bg-surface px-4 py-3 text-left"
+          >
+            <span className="font-semibold text-ink">
+              {fineTuned ? '🎚️ Your custom scores' : '🎚️ Fine-tune scores (optional)'}
+            </span>
+            <span className="text-ink-soft">{showFineTune ? '▲' : '▼'}</span>
+          </button>
+
+          <AnimatePresence initial={false}>
+            {showFineTune && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="grid gap-3 md:grid-cols-2">
+                  {SCORE_QUESTIONS.map((q) => (
+                    <SliderQuestion key={q.key} question={q} value={scores[q.key]} onChange={(v) => updateScore(q.key, v)} />
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {error && <p className="text-sm font-medium text-danger">{error}</p>}
           <Button size="lg" fullWidth loading={submitting} onClick={submit}>
             🎯 Create goal & get my recommendation

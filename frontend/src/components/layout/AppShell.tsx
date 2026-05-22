@@ -3,19 +3,23 @@ import { BottomNavigation } from './BottomNavigation';
 import { SidebarNav } from './SidebarNav';
 import { OfflineIndicator } from './OfflineIndicator';
 import { AddExpenseModal } from '@/components/expenses/AddExpenseModal';
+import { Toaster } from '@/components/ui/Toaster';
+import { CelebrationOverlay } from '@/components/gamification/CelebrationOverlay';
 import { useExpenseModal } from '@/store/expenseModal';
 import { useOfflineSync } from '@/lib/expenses';
+import { useAchievementWatcher } from '@/hooks/useAchievementWatcher';
 
 /**
  * Responsive app frame.
  * - Phones (< md): single column with a fixed bottom navigation + a floating
  *   quick-add button.
  * - Tablet / desktop (>= md): a persistent left sidebar with a fluid content area.
- * Also hosts the global Add-Expense modal and starts offline-sync.
+ * Also hosts the global Add-Expense modal, toasts, celebrations and offline-sync.
  */
 export function AppShell() {
   const openModal = useExpenseModal((s) => s.openModal);
   useOfflineSync();
+  useAchievementWatcher();
 
   return (
     <div className="min-h-dvh bg-gradient-app">
@@ -41,6 +45,8 @@ export function AppShell() {
 
       <BottomNavigation />
       <AddExpenseModal />
+      <Toaster />
+      <CelebrationOverlay />
     </div>
   );
 }

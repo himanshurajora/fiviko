@@ -5,9 +5,12 @@ const COLORS = ['#6C63FF', '#00C2A8', '#FFD166', '#FF8A3D', '#22C55E', '#EF4444'
 
 /**
  * Lightweight confetti burst for celebrations (no external dependency).
- * Respects reduced-motion via the global CSS rule that flattens animations.
+ * Framer Motion is JS-driven, so we explicitly skip it under reduced-motion.
  */
 export function Confetti({ pieces = 60 }: { pieces?: number }) {
+  const reduceMotion =
+    typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
   const bits = useMemo(
     () =>
       Array.from({ length: pieces }).map((_, i) => ({
@@ -21,6 +24,8 @@ export function Confetti({ pieces = 60 }: { pieces?: number }) {
       })),
     [pieces],
   );
+
+  if (reduceMotion) return null;
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden" aria-hidden>

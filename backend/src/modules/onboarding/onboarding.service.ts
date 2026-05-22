@@ -1,9 +1,10 @@
 import { Prisma } from '@prisma/client';
-import { computeHealthScore, type BadgeDTO, type OnboardingResult } from '@fiviko/shared';
+import { CATEGORY_SCORE_PRESETS, computeHealthScore, type BadgeDTO, type OnboardingResult } from '@fiviko/shared';
 import { prisma } from '../../lib/prisma.js';
 import { AppError } from '../../lib/http.js';
 import { getFinancialSummary } from '../profile/profile.service.js';
 import { awardBadge } from '../badges/badges.service.js';
+import { recalculateRecommendation } from '../goals/goals.service.js';
 import type { OnboardingInput } from './onboarding.schema.js';
 
 const D = (n: number) => new Prisma.Decimal(n);
@@ -58,6 +59,9 @@ export async function completeOnboarding(userId: string, input: OnboardingInput)
           priority: g.priority,
         },
       });
+      // Seed smart preset scores so the goal has a recommendation immediately.
+      const preset = CATEGORY_SCORE_PRESETS[g.category] ?? CATEGORY_SCORE_PRESETS.OTHER;
+      await tx.goalScoreInput.create({ data: { goalId: goal.id, ...preset } });
       return goal.id;
     }
     return null;
@@ -70,6 +74,12 @@ export async function completeOnboarding(userId: string, input: OnboardingInput)
   if (goalId) {
     const goalBadge = await awardBadge(userId, 'FIRST_GOAL');
     if (goalBadge) unlockedBadges.push(goalBadge);
+    // Compute the goal's recommendation now that scores + finances exist.
+    try {
+      await recalculateRecommendation(userId, goalId);
+    } catch {
+      /* non-fatal: recommendation can be computed lazily on first view */
+    }
   }
 
   const summary = await getFinancialSummary(userId);
