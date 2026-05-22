@@ -14,8 +14,8 @@ export function Profile() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-extrabold text-ink">Profile</h1>
+    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <h1 className="text-2xl font-extrabold text-ink md:text-3xl">Profile</h1>
 
       <Card padded className="flex items-center gap-4">
         <span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-primary text-xl font-bold text-white">

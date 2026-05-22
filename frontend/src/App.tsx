@@ -7,6 +7,8 @@ import { Register } from '@/pages/Register';
 import { Dashboard } from '@/pages/Dashboard';
 import { Expenses } from '@/pages/Expenses';
 import { Goals } from '@/pages/Goals';
+import { AddGoal } from '@/pages/AddGoal';
+import { GoalDetail } from '@/pages/GoalDetail';
 import { Badges } from '@/pages/Badges';
 import { Profile } from '@/pages/Profile';
 
@@ -24,6 +26,8 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="expenses" element={<Expenses />} />
           <Route path="goals" element={<Goals />} />
+          <Route path="goals/new" element={<AddGoal />} />
+          <Route path="goals/:id" element={<GoalDetail />} />
           <Route path="badges" element={<Badges />} />
           <Route path="profile" element={<Profile />} />
         </Route>

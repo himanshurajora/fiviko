@@ -52,7 +52,11 @@ export const SCORE_QUESTIONS: ScoreQuestionMeta[] = [
  * to 0–100 before being combined with these weights.
  */
 export const SCORING_WEIGHTS = {
-  /** Weights for combining the four components into the final readiness score. */
+  /**
+   * Weights for combining components into the final readiness score.
+   * The three positive components sum to 1.0 (so they alone can reach 100);
+   * the two penalties are then subtracted. Final score is clamped to 0–100.
+   */
   components: {
     financialSafety: 0.35,
     personalValue: 0.3,
@@ -60,14 +64,14 @@ export const SCORING_WEIGHTS = {
     riskPenalty: 0.3,
     goalConflictPenalty: 0.2,
   },
-  /** Weights inside the Financial Safety sub-score. */
+  /** Financial Safety: positive strengths sum to 1.0; penalties are subtracted. */
   financialSafety: {
-    netWorthStrength: 0.2,
-    liquidMoneyStrength: 0.25,
+    netWorthStrength: 0.25,
+    liquidMoneyStrength: 0.3,
     monthlySurplusStrength: 0.2,
-    emergencyFundStrength: 0.2,
-    debtPressure: 0.1,
-    overspendingPenalty: 0.05,
+    emergencyFundStrength: 0.25,
+    debtPressure: 0.25,
+    overspendingPenalty: 0.15,
   },
   /** Weights inside the Personal Value sub-score (over the user's 1–100 answers). */
   personalValue: {

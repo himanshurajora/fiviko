@@ -14,7 +14,7 @@ export function BottomNavigation() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-md border-t border-muted-border bg-surface/95 backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-muted-border bg-surface/95 backdrop-blur md:hidden"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <ul className="flex items-stretch justify-around">
