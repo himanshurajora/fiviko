@@ -185,13 +185,32 @@ export async function deleteGoal(userId: string, goalId: string): Promise<void> 
  * the saved amount, marks the goal achieved when it reaches the target (awarding
  * the Goal Achiever badge), and recomputes the savings split for the rest.
  */
-export async function contributeToGoal(userId: string, goalId: string, amount: number): Promise<GoalDTO> {
+export async function contributeToGoal(userId: string, goalId: string, amount: number, fromAssetId?: string | null): Promise<GoalDTO> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw AppError.notFound('User not found');
   const goal = await getGoal(userId, goalId);
   if (amount <= 0) throw AppError.badRequest('Contribution must be greater than 0');
 
   const baseAmount = await convertCurrency(amount, goal.currency, user.baseCurrency);
+
+  // Optionally move the money out of a real asset so net worth stays consistent.
+  if (fromAssetId) {
+    const asset = await prisma.asset.findFirst({ where: { id: fromAssetId, userId } });
+    if (!asset) throw AppError.badRequest('Source account not found');
+    const oldBase = dec(asset.baseCurrencyAmount);
+    if (baseAmount > oldBase) throw AppError.badRequest('Not enough in that account for this contribution');
+    const newBase = oldBase - baseAmount;
+    // Scale the asset's native amount proportionally (avoids a re-conversion).
+    const ratio = oldBase > 0 ? newBase / oldBase : 0;
+    await prisma.asset.update({
+      where: { id: asset.id },
+      data: {
+        baseCurrencyAmount: new Prisma.Decimal(round2(newBase)),
+        amount: new Prisma.Decimal(round2(dec(asset.amount) * ratio)),
+      },
+    });
+  }
+
   const newSaved = dec(goal.currentSavedAmount) + amount;
   const newBaseSaved = dec(goal.baseCurrencyCurrentSavedAmount) + baseAmount;
   const reachedTarget = newBaseSaved >= dec(goal.baseCurrencyTargetAmount);
@@ -207,9 +226,13 @@ export async function contributeToGoal(userId: string, goalId: string, amount: n
   });
 
   if (reachedTarget) await awardBadge(userId, 'GOAL_ACHIEVER');
-  // Saved money changes remaining amounts → re-split across active goals.
+  // Saved money (and possibly liquidity) changed → re-split across active goals.
   await recomputeActiveGoals(userId);
   return toGoalDTO(updated);
+}
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 export async function saveScoreInput(userId: string, goalId: string, input: ScoreInput): Promise<void> {

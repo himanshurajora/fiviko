@@ -196,6 +196,24 @@ model User {
   streaks           Streak[]
   challenges        UserChallenge[]
   incomeHistory     IncomeHistory[]
+  netWorthHistory   NetWorthHistory[]
+  categoryBudgets   CategoryBudget[]
+}
+
+/// Optional monthly spending cap per expense category (spec §8.4 budget vs actual).
+model CategoryBudget {
+  id            String          @id @default(cuid())
+  userId        String
+  category      ExpenseCategory
+  /// Monthly limit in the user's base currency.
+  monthlyLimit  Decimal         @db.Decimal(18, 2)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@index([userId])
 }
 
 model Asset {
@@ -462,4 +480,32 @@ model CurrencyRate {
   updatedAt    DateTime @updatedAt
 
   @@unique([fromCurrency, toCurrency])
+}
+
+/// Tracks when periodic jobs (e.g. currency sync) last ran, so the task
+/// executor can be throttled (e.g. currency at most once/day). Keyed by job name.
+model SyncState {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  lastRunAt DateTime
+  meta      String?
+}
+
+/// Monthly net-worth snapshot for the net-worth trend chart (spec §16).
+model NetWorthHistory {
+  id               String   @id @default(cuid())
+  userId           String
+  /// YYYY-MM
+  month            String
+  netWorth         Decimal  @db.Decimal(18, 2)
+  liquidNetWorth   Decimal  @db.Decimal(18, 2)
+  totalAssets      Decimal  @db.Decimal(18, 2)
+  totalLiabilities Decimal  @db.Decimal(18, 2)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month])
+  @@index([userId])
 }

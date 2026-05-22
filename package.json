@@ -6,7 +6,8 @@
   "workspaces": [
     "packages/*",
     "backend",
-    "frontend"
+    "frontend",
+    "task-executor"
   ],
   "engines": {
     "node": ">=20"
@@ -17,7 +18,9 @@
     "shared:build": "npm run build -w @fiviko/shared",
     "backend:dev": "npm run dev -w @fiviko/backend",
     "frontend:dev": "npm run dev -w @fiviko/frontend",
+    "executor:dev": "npm run dev -w @fiviko/task-executor",
     "dev": "npm run shared:build && concurrently -n backend,frontend -c blue,magenta \"npm run backend:dev\" \"npm run frontend:dev\"",
+    "dev:all": "npm run shared:build && concurrently -n backend,frontend,executor -c blue,magenta,green \"npm run backend:dev\" \"npm run frontend:dev\" \"npm run executor:dev\"",
     "prisma:migrate": "npm run prisma:migrate -w @fiviko/backend",
     "prisma:seed": "npm run prisma:seed -w @fiviko/backend"
   },

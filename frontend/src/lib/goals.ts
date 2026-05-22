@@ -116,17 +116,19 @@ export function useRecalculate(goalId: string) {
   });
 }
 
-/** Records actual savings put toward a goal (in the goal's currency). */
+/** Records actual savings put toward a goal (optionally moved from an asset). */
 export function useContribute(goalId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (amount: number): Promise<GoalDTO> =>
-      (await api.post(`/goals/${goalId}/contribute`, { amount })).data,
+    mutationFn: async (input: { amount: number; fromAssetId?: string | null }): Promise<GoalDTO> =>
+      (await api.post(`/goals/${goalId}/contribute`, input)).data,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['goals'] });
       void qc.invalidateQueries({ queryKey: ['goals', goalId] });
       void qc.invalidateQueries({ queryKey: ['badges'] });
       void qc.invalidateQueries({ queryKey: ['level'] });
+      void qc.invalidateQueries({ queryKey: ['assets'] });
+      void qc.invalidateQueries({ queryKey: ['profile', 'summary'] });
     },
   });
 }

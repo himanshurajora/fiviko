@@ -4,6 +4,7 @@ import {
   NeedOrWant,
   PaymentMethod,
   SyncStatus,
+  type CategoryBudgetStatus,
   type ExpenseCategory,
   type ExpenseDTO,
   type MonthlySummary,
@@ -58,10 +59,44 @@ export function useMonthlySummary(month?: string) {
   });
 }
 
+export function useBudgets() {
+  return useQuery({
+    queryKey: ['budgets'],
+    queryFn: async (): Promise<CategoryBudgetStatus[]> => (await api.get('/budgets')).data,
+  });
+}
+
+export function useSetBudget() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ category, amount }: { category: ExpenseCategory; amount: number }): Promise<CategoryBudgetStatus[]> =>
+      (await api.put(`/budgets/${category}`, { amount })).data,
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['budgets'] }),
+  });
+}
+
 export function useDeleteExpense() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/expenses/${id}`)).data,
+    onSuccess: () => invalidateExpenseViews(qc),
+  });
+}
+
+export interface UpdateExpensePayload {
+  amount?: number;
+  currency?: string;
+  category?: ExpenseCategory;
+  note?: string | null;
+  needOrWant?: NeedOrWant;
+  paymentMethod?: PaymentMethod;
+}
+
+export function useUpdateExpense() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: UpdateExpensePayload & { id: string }): Promise<ExpenseDTO> =>
+      (await api.put(`/expenses/${id}`, payload)).data,
     onSuccess: () => invalidateExpenseViews(qc),
   });
 }

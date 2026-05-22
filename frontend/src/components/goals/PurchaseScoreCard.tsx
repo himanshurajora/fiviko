@@ -2,20 +2,26 @@ import type { RecommendationResult } from '@fiviko/shared';
 import { Card } from '@/components/ui/Card';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { RecommendationBadge } from './RecommendationBadge';
+import { AiText } from '@/components/ai/AiText';
 import { RECOMMENDATION_META } from '@/lib/goalMeta';
 import { formatCurrency } from '@/lib/format';
+import { useAiStatus, useExplainDecision } from '@/lib/ai';
 
 /** The headline purchase-decision result with score, explanation and breakdown. */
 export function PurchaseScoreCard({
   result,
   currency,
+  goalId,
 }: {
   result: RecommendationResult;
   currency: string;
+  goalId?: string;
 }) {
   const meta = RECOMMENDATION_META[result.recommendation];
   const ringColor =
     result.purchaseReadinessScore >= 70 ? '#22C55E' : result.purchaseReadinessScore >= 40 ? '#F59E0B' : '#EF4444';
+  const { data: aiStatus } = useAiStatus();
+  const explain = useExplainDecision();
 
   return (
     <Card padded className={meta.soft}>
@@ -23,7 +29,22 @@ export function PurchaseScoreCard({
         <ProgressRing value={result.purchaseReadinessScore / 100} label={`${Math.round(result.purchaseReadinessScore)}`} color={ringColor} size={108} />
         <RecommendationBadge recommendation={result.recommendation} />
         <p className="max-w-prose text-sm leading-relaxed text-ink">{result.explanation}</p>
+        {goalId && aiStatus?.enabled && (
+          <button
+            onClick={() => explain.mutate(goalId)}
+            disabled={explain.isPending}
+            className="focus-ring rounded-full bg-surface/80 px-3 py-1 text-xs font-semibold text-primary"
+          >
+            {explain.isPending ? '🤖 Thinking…' : '🤖 Explain in detail'}
+          </button>
+        )}
       </div>
+
+      {explain.data && (
+        <div className="mt-3 rounded-2xl bg-surface/80 p-3">
+          <AiText text={explain.data.text} />
+        </div>
+      )}
 
       {/* Sub-scores */}
       <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">

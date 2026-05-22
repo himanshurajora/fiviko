@@ -9,10 +9,19 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
-  /** Toggle the in-process recurring-expense scheduler (off during tests). */
+  /**
+   * Shared secret the task executor presents on /api/internal/* endpoints. The
+   * executor never touches the DB directly — it calls these endpoints. Override
+   * in production; the dev default keeps local boot working.
+   */
+  INTERNAL_API_TOKEN: z.string().min(16).default('dev-internal-token-change-me-please'),
+  /** OpenAI — optional; AI features disable gracefully when unset. */
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().default('gpt-4o-mini'),
+  /** Legacy in-process scheduler. Off by default now that the executor owns jobs. */
   ENABLE_SCHEDULER: z
     .enum(['true', 'false'])
-    .default('true')
+    .default('false')
     .transform((v) => v === 'true'),
 });
 

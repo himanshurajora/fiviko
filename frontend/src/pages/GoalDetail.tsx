@@ -70,7 +70,7 @@ export function GoalDetail() {
 
       {/* Recommendation */}
       {recommendation ? (
-        <PurchaseScoreCard result={recommendation} currency={goal.currency} />
+        <PurchaseScoreCard result={recommendation} currency={goal.currency} goalId={goal.id} />
       ) : (
         <Card padded className="text-center">
           <p className="text-ink-soft">Answer the value questions to get a recommendation.</p>

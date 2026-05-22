@@ -6,6 +6,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ExpenseListItem } from '@/components/expenses/ExpenseListItem';
 import { SpendingByCategory } from '@/components/expenses/SpendingByCategory';
+import { BudgetsCard } from '@/components/expenses/BudgetsCard';
 import { useDeleteExpense, useExpenses, useMonthlySummary, readPendingForDisplay } from '@/lib/expenses';
 import { useExpenseModal } from '@/store/expenseModal';
 import { useSync } from '@/store/sync';
@@ -90,6 +91,7 @@ export function Expenses() {
           </div>
 
           <SpendingByCategory summary={summary} />
+          <BudgetsCard currency={currency} />
         </>
       )}
 

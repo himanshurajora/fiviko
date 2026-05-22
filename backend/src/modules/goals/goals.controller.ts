@@ -71,5 +71,5 @@ export async function postWhatIf(req: Request, res: Response): Promise<void> {
 }
 
 export async function postContribute(req: Request, res: Response): Promise<void> {
-  res.json(await contributeToGoal(userId(req), req.params.id, req.body.amount));
+  res.json(await contributeToGoal(userId(req), req.params.id, req.body.amount, req.body.fromAssetId));
 }

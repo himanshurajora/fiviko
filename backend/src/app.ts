@@ -21,6 +21,10 @@ import { streaksRouter } from './modules/streaks/streaks.routes.js';
 import { challengesRouter } from './modules/challenges/challenges.routes.js';
 import { levelRouter } from './modules/level/level.routes.js';
 import { incomeHistoryRouter } from './modules/income-history/income-history.routes.js';
+import { netWorthHistoryRouter } from './modules/networth-history/networth-history.routes.js';
+import { budgetsRouter } from './modules/budgets/budgets.routes.js';
+import { aiRouter } from './modules/ai/ai.routes.js';
+import { internalRouter } from './modules/internal/internal.routes.js';
 
 export function createApp() {
   const app = express();
@@ -57,6 +61,10 @@ export function createApp() {
   app.use('/api/challenges', challengesRouter);
   app.use('/api/level', levelRouter);
   app.use('/api/income-history', incomeHistoryRouter);
+  app.use('/api/networth-history', netWorthHistoryRouter);
+  app.use('/api/budgets', budgetsRouter);
+  app.use('/api/ai', aiRouter);
+  app.use('/api/internal', internalRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

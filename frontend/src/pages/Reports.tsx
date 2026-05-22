@@ -1,11 +1,12 @@
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Recommendation } from '@fiviko/shared';
 import { Card } from '@/components/ui/Card';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { SpendingByCategory } from '@/components/expenses/SpendingByCategory';
 import { IncomeHistoryEditor } from '@/components/reports/IncomeHistoryEditor';
+import { AiInsights } from '@/components/ai/AiInsights';
 import { useFinancialSummary } from '@/lib/queries';
-import { useExpenseTrend } from '@/lib/finances';
+import { useExpenseTrend, useNetWorthHistory } from '@/lib/finances';
 import { useMonthlySummary } from '@/lib/expenses';
 import { useGoals } from '@/lib/goals';
 import { formatCurrency } from '@/lib/format';
@@ -15,6 +16,7 @@ export function Reports() {
   const { data: summary } = useFinancialSummary();
   const { data: monthly } = useMonthlySummary();
   const { data: trend } = useExpenseTrend(6);
+  const { data: netWorthHistory } = useNetWorthHistory(6);
   const { data: goals } = useGoals();
   const cur = summary?.baseCurrency ?? 'USD';
 
@@ -24,12 +26,20 @@ export function Reports() {
     Income: p.income,
   }));
 
+  const netWorthData = (netWorthHistory ?? []).map((p) => ({
+    label: new Date(`${p.month}-01`).toLocaleDateString(undefined, { month: 'short' }),
+    'Net worth': p.netWorth,
+  }));
+
   const activeGoals = (goals ?? []).filter((g) => g.status === 'ACTIVE');
   const warnings = buildWarnings(summary, monthly, goals ?? []);
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
       <h1 className="text-2xl font-extrabold text-ink md:text-3xl">Monthly report</h1>
+
+      {/* AI money coach (report, tips, Q&A) */}
+      <AiInsights />
 
       {/* Net worth snapshot */}
       {summary && (
@@ -71,6 +81,30 @@ export function Reports() {
               <Bar dataKey="Income" radius={[8, 8, 0, 0]} fill="#00C2A8" />
               <Bar dataKey="Spent" radius={[8, 8, 0, 0]} fill="#6C63FF" />
             </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
+      {/* Net-worth trend */}
+      <Card padded>
+        <h3 className="font-bold text-ink">Net worth over time</h3>
+        <p className="text-sm text-ink-soft">Snapshotted monthly</p>
+        <div className="mt-3 h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={netWorthData} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+              <defs>
+                <linearGradient id="nw" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6C63FF" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#6C63FF" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EEF0FA" />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} stroke="#6B7280" />
+              <YAxis tickLine={false} axisLine={false} fontSize={11} stroke="#6B7280" width={48}
+                tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`)} />
+              <Tooltip formatter={(v: number) => [formatCurrency(v, cur), 'Net worth']} contentStyle={{ borderRadius: 12, border: '1px solid #E5E7EB' }} />
+              <Area type="monotone" dataKey="Net worth" stroke="#6C63FF" strokeWidth={2.5} fill="url(#nw)" />
+            </AreaChart>
           </ResponsiveContainer>
         </div>
       </Card>

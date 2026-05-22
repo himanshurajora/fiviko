@@ -53,6 +53,8 @@ export const whatIfSchema = z.object({
 /** Record actual savings toward a goal (in the goal's currency). */
 export const contributeSchema = z.object({
   amount: z.number().positive('Contribution must be greater than 0'),
+  /** Optionally move the money out of this asset, keeping net worth consistent. */
+  fromAssetId: z.string().optional().nullable(),
 });
 
 export type CreateGoalInput = z.infer<typeof createGoalSchema>;

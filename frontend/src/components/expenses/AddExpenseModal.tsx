@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { NeedOrWant, PaymentMethod, type ExpenseCategory } from '@fiviko/shared';
 import { Button } from '@/components/ui/Button';
-import { useAddExpense } from '@/lib/expenses';
+import { useAddExpense, useUpdateExpense } from '@/lib/expenses';
 import { notify } from '@/store/toast';
 import { useExpenseModal } from '@/store/expenseModal';
 import { useAuth } from '@/store/auth';
@@ -19,9 +19,11 @@ import { SUPPORTED_CURRENCIES } from '@/lib/currencies';
  * larger screens. Works offline via useAddExpense.
  */
 export function AddExpenseModal() {
-  const { open, linkedGoalId, closeModal } = useExpenseModal();
+  const { open, linkedGoalId, editing, closeModal } = useExpenseModal();
   const baseCurrency = useAuth((s) => s.user?.baseCurrency ?? 'USD');
   const addExpense = useAddExpense();
+  const updateExpense = useUpdateExpense();
+  const isEdit = !!editing;
 
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState(baseCurrency);
@@ -31,18 +33,26 @@ export function AddExpenseModal() {
   const [note, setNote] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Reset the form whenever the sheet is (re)opened.
+  // Reset (or prefill, when editing) whenever the sheet is (re)opened.
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    setFeedback(null);
+    if (editing) {
+      setAmount(String(editing.amount));
+      setCurrency(editing.currency);
+      setCategory(editing.category);
+      setNeedOrWant(editing.needOrWant);
+      setPaymentMethod(editing.paymentMethod);
+      setNote(editing.note ?? '');
+    } else {
       setAmount('');
       setCurrency(baseCurrency);
       setCategory('FOOD' as ExpenseCategory);
       setNeedOrWant(NeedOrWant.Need);
       setPaymentMethod(PaymentMethod.Cash);
       setNote('');
-      setFeedback(null);
     }
-  }, [open, baseCurrency]);
+  }, [open, baseCurrency, editing]);
 
   // Close on Escape (accessibility).
   useEffect(() => {
@@ -61,6 +71,12 @@ export function AddExpenseModal() {
       return;
     }
     try {
+      if (editing) {
+        await updateExpense.mutateAsync({ id: editing.id, amount: value, currency, category, needOrWant, paymentMethod, note: note.trim() || null });
+        notify.custom('Expense updated', { tone: 'success', icon: '✏️', sound: 'save' });
+        closeModal();
+        return;
+      }
       const result = await addExpense.mutateAsync({
         amount: value,
         currency,
@@ -103,7 +119,7 @@ export function AddExpenseModal() {
           >
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-muted-border sm:hidden" aria-hidden />
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-extrabold text-ink">Add expense</h2>
+              <h2 className="text-lg font-extrabold text-ink">{isEdit ? 'Edit expense' : 'Add expense'}</h2>
               <button onClick={closeModal} className="focus-ring rounded-full p-1 text-ink-soft" aria-label="Close">
                 ✕
               </button>
@@ -189,8 +205,8 @@ export function AddExpenseModal() {
 
             {feedback && <p className="mt-3 text-center text-sm font-medium text-primary">{feedback}</p>}
 
-            <Button size="lg" fullWidth className="mt-4" loading={addExpense.isPending} onClick={save}>
-              Save expense
+            <Button size="lg" fullWidth className="mt-4" loading={addExpense.isPending || updateExpense.isPending} onClick={save}>
+              {isEdit ? 'Save changes' : 'Save expense'}
             </Button>
           </motion.div>
         </motion.div>

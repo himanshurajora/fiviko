@@ -10,6 +10,7 @@ import type {
   LiabilityType,
   MandatoryExpenseCategory,
   MandatoryExpenseDTO,
+  NetWorthHistoryEntry,
 } from '@fiviko/shared';
 import { api } from './api';
 
@@ -47,6 +48,13 @@ export function useIncomeHistory(months = 6) {
   return useQuery({
     queryKey: ['income-history', months],
     queryFn: async (): Promise<IncomeHistoryEntry[]> => (await api.get('/income-history', { params: { months } })).data,
+  });
+}
+
+export function useNetWorthHistory(months = 6) {
+  return useQuery({
+    queryKey: ['networth-history', months],
+    queryFn: async (): Promise<NetWorthHistoryEntry[]> => (await api.get('/networth-history', { params: { months } })).data,
   });
 }
 

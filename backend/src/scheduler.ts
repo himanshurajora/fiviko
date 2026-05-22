@@ -1,36 +1,18 @@
-import cron from 'node-cron';
 import { env } from './config/env.js';
-import { generateRecurringForAllUsers } from './modules/expenses/recurring.service.js';
-import { monthKey, snapshotMonthForAllUsers } from './modules/income-history/income-history.service.js';
 
 /**
- * Optional in-process scheduler. Phase 1 only needs one genuine wall-clock job:
- * generating recurring expenses at the start of each month. Kept in-process (no
- * separate worker) and idempotent, so a missed/retried run never duplicates.
+ * Scheduled jobs (recurring expenses, income/net-worth snapshots, currency sync)
+ * now run in the dedicated **task-executor** service, which triggers them via the
+ * authenticated /api/internal/* endpoints. This keeps scheduling out of the API
+ * process so it can scale independently, and the executor never touches the DB.
  *
- * When Phase 2 adds push notifications and reminders, this is the seam to lift
- * into a dedicated queue-backed worker (e.g. BullMQ + Redis).
+ * The in-process path remains only as an optional fallback (ENABLE_SCHEDULER=true)
+ * and is a no-op by default.
  */
 export function startScheduler(): void {
   if (!env.ENABLE_SCHEDULER) {
-    console.log('⏸️  Scheduler disabled (ENABLE_SCHEDULER=false).');
+    console.log('🛰️  Scheduled jobs are handled by the task-executor service.');
     return;
   }
-
-  // 02:00 UTC on the 1st of every month: generate recurring expenses and
-  // snapshot each user's income for the new month (idempotent).
-  cron.schedule(
-    '0 2 1 * *',
-    () => {
-      void generateRecurringForAllUsers()
-        .then((n) => console.log(`🔁 Recurring expenses generated: ${n}`))
-        .catch((err) => console.error('Recurring generation failed:', err));
-      void snapshotMonthForAllUsers(monthKey(new Date()))
-        .then((n) => console.log(`📸 Income snapshots created: ${n}`))
-        .catch((err) => console.error('Income snapshot failed:', err));
-    },
-    { timezone: 'UTC' },
-  );
-
-  console.log('⏰ Scheduler started (recurring expenses + income snapshots: monthly).');
+  console.log('⚠️  ENABLE_SCHEDULER=true, but in-process scheduling is deprecated — run the task-executor instead.');
 }

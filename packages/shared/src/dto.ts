@@ -141,6 +141,23 @@ export interface IncomeHistoryEntry {
   source: 'auto' | 'manual';
 }
 
+/** One month's net-worth snapshot for the net-worth trend (spec §16). */
+export interface NetWorthHistoryEntry {
+  /** YYYY-MM */
+  month: string;
+  netWorth: number;
+  liquidNetWorth: number;
+}
+
+/** A category's monthly budget cap and how much has been spent this month. */
+export interface CategoryBudgetStatus {
+  category: ExpenseCategory;
+  /** Monthly cap in base currency, or null if no cap is set. */
+  monthlyLimit: number | null;
+  /** Base-currency spend in this category this month. */
+  spent: number;
+}
+
 /** Single-shot payload submitted at the end of the gamified onboarding (spec §8.2). */
 export interface OnboardingPayload {
   baseCurrency: string;
