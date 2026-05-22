@@ -1,4 +1,5 @@
 import type { RecommendationResult } from '@fiviko/shared';
+import clsx from 'clsx';
 import { Card } from '@/components/ui/Card';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { RecommendationBadge } from './RecommendationBadge';
@@ -7,7 +8,8 @@ import { RECOMMENDATION_META } from '@/lib/goalMeta';
 import { formatCurrency } from '@/lib/format';
 import { useAiStatus, useExplainDecision } from '@/lib/ai';
 
-/** The headline purchase-decision result with score, explanation and breakdown. */
+/** The headline purchase-decision result: a friendly verdict, plain-language
+ *  reasons (no raw scores), and the saving plan. */
 export function PurchaseScoreCard({
   result,
   currency,
@@ -26,7 +28,8 @@ export function PurchaseScoreCard({
   return (
     <Card padded className={meta.soft}>
       <div className="flex flex-col items-center gap-3 text-center">
-        <ProgressRing value={result.purchaseReadinessScore / 100} label={`${Math.round(result.purchaseReadinessScore)}`} color={ringColor} size={108} />
+        {/* Readiness shown as a gauge with the verdict emoji — no bare number. */}
+        <ProgressRing value={result.purchaseReadinessScore / 100} label={meta.emoji} color={ringColor} size={104} />
         <RecommendationBadge recommendation={result.recommendation} />
         <p className="max-w-prose text-sm leading-relaxed text-ink">{result.explanation}</p>
         {goalId && aiStatus?.enabled && (
@@ -46,13 +49,14 @@ export function PurchaseScoreCard({
         </div>
       )}
 
-      {/* Sub-scores */}
-      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <SubScore label="Safety" value={result.financialSafetyScore} />
-        <SubScore label="Personal value" value={result.personalValueScore} />
-        <SubScore label="Future benefit" value={result.futureBenefitScore} />
-        <SubScore label="Risk" value={result.riskScore} inverse />
-        <SubScore label="Goal conflict" value={result.goalConflictScore} inverse />
+      {/* Plain-language reasons (no internal scores). */}
+      <div className="mt-5 rounded-2xl bg-surface/70 p-3">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-soft">Why this verdict</p>
+        <Rating label="Can you afford it" value={result.financialSafetyScore} />
+        <Rating label="How much you’ll value it" value={result.personalValueScore} />
+        <Rating label="Long-term payoff" value={result.futureBenefitScore} />
+        <Rating label="Risk level" value={result.riskScore} inverse />
+        <Rating label="Impact on other goals" value={result.goalConflictScore} inverse conflict />
       </div>
 
       {/* Saving plan */}
@@ -76,15 +80,15 @@ export function PurchaseScoreCard({
         )}
       </div>
 
-      {/* Conflicts */}
-      {result.conflicts.length > 0 && (
+      {/* Conflicts (plain language) */}
+      {result.conflicts.some((c) => c.delayMonths > 0) && (
         <div className="mt-4 rounded-2xl bg-surface/70 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Impact on other goals</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Effect on other goals</p>
           <ul className="mt-1 space-y-1 text-sm text-ink">
-            {result.conflicts.map((c) => (
+            {result.conflicts.filter((c) => c.delayMonths > 0).map((c) => (
               <li key={c.goalId}>
-                <span className="font-semibold">{c.goalName}</span>: delayed ~{c.delayMonths} mo
-                {c.progressReductionPct > 0 && `, −${c.progressReductionPct}% progress`}
+                <span className="font-semibold">{c.goalName}</span> delayed about {c.delayMonths} month{c.delayMonths > 1 ? 's' : ''}
+                {c.progressReductionPct > 0 && ` (−${c.progressReductionPct}%)`}
               </li>
             ))}
           </ul>
@@ -94,14 +98,44 @@ export function PurchaseScoreCard({
   );
 }
 
-function SubScore({ label, value, inverse }: { label: string; value: number; inverse?: boolean }) {
-  const good = inverse ? value <= 40 : value >= 60;
-  const mid = value > 40 && value < 60;
-  const color = good ? 'text-success' : mid ? 'text-warning' : 'text-danger';
+/**
+ * Translates an internal 0–100 sub-score into a plain word + colour, hiding the
+ * number. For `inverse` dimensions (risk, conflict) a low value is good.
+ */
+function Rating({ label, value, inverse, conflict }: { label: string; value: number; inverse?: boolean; conflict?: boolean }) {
+  let word: string;
+  let tone: 'good' | 'mid' | 'bad';
+  if (inverse) {
+    if (value <= 5 && conflict) {
+      word = 'None';
+      tone = 'good';
+    } else if (value <= 33) {
+      word = 'Low';
+      tone = 'good';
+    } else if (value <= 66) {
+      word = conflict ? 'Some' : 'Medium';
+      tone = 'mid';
+    } else {
+      word = 'High';
+      tone = 'bad';
+    }
+  } else {
+    if (value >= 67) {
+      word = 'Strong';
+      tone = 'good';
+    } else if (value >= 34) {
+      word = 'Okay';
+      tone = 'mid';
+    } else {
+      word = 'Weak';
+      tone = 'bad';
+    }
+  }
+  const toneClass = tone === 'good' ? 'bg-success/15 text-success' : tone === 'mid' ? 'bg-warning/15 text-warning' : 'bg-danger/15 text-danger';
   return (
-    <div className="rounded-2xl bg-surface/70 px-3 py-2 text-center">
-      <p className="text-xs text-ink-soft">{label}</p>
-      <p className={`text-lg font-extrabold ${color}`}>{Math.round(value)}</p>
+    <div className="flex items-center justify-between py-1 text-sm">
+      <span className="text-ink">{label}</span>
+      <span className={clsx('rounded-full px-2.5 py-0.5 text-xs font-bold', toneClass)}>{word}</span>
     </div>
   );
 }

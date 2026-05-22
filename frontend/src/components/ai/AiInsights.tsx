@@ -2,15 +2,14 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { AiText } from './AiText';
-import { useAiStatus, useCoachAsk, useMonthlyReport, useSavingsTips } from '@/lib/ai';
+import { useAiStatus, useCoachAsk, useSavingsTips } from '@/lib/ai';
 import { getErrorMessage } from '@/lib/api';
 import { notify } from '@/store/toast';
 
-/** AI money coach: monthly report, savings tips, and free-form Q&A. */
+/** AI money coach: a few quick savings tips and free-form Q&A (kept short). */
 export function AiInsights() {
   const { data: status } = useAiStatus();
   const enabled = !!status?.enabled;
-  const report = useMonthlyReport(enabled);
   const tips = useSavingsTips(enabled);
   const coach = useCoachAsk();
   const [question, setQuestion] = useState('');
@@ -41,28 +40,9 @@ export function AiInsights() {
         <span className="text-[11px] uppercase tracking-wide text-ink-soft">powered by AI</span>
       </div>
 
-      {/* Monthly report */}
+      {/* A few quick, actionable tips */}
       <section className="mt-3">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-bold text-ink">This month’s report</h4>
-          <button onClick={() => report.refetch()} className="focus-ring rounded text-xs font-semibold text-primary" disabled={report.isFetching}>
-            {report.isFetching ? 'Thinking…' : 'Refresh'}
-          </button>
-        </div>
-        <div className="mt-2">
-          {report.isLoading || report.isFetching ? (
-            <p className="text-sm text-ink-soft">Generating your report…</p>
-          ) : report.isError ? (
-            <p className="text-sm text-danger">{getErrorMessage(report.error)}</p>
-          ) : report.data ? (
-            <AiText text={report.data.text} />
-          ) : null}
-        </div>
-      </section>
-
-      {/* Tips */}
-      <section className="mt-4 border-t border-muted-border/60 pt-3">
-        <h4 className="text-sm font-bold text-ink">Smart savings tips</h4>
+        <h4 className="text-sm font-bold text-ink">Quick tips</h4>
         <div className="mt-2">
           {tips.isLoading ? <p className="text-sm text-ink-soft">Finding tips…</p> : tips.data ? <AiText text={tips.data.text} /> : null}
         </div>

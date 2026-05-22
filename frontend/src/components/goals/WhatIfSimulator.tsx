@@ -68,10 +68,11 @@ export function WhatIfSimulator({ goal }: { goal: GoalDTO }) {
               <RecommendationBadge recommendation={result.recommendation} size="sm" />
             </div>
             <p className="mt-2 text-sm leading-relaxed text-ink">{result.explanation}</p>
-            <p className="mt-2 text-xs text-ink-soft">
-              Readiness score: <strong>{Math.round(result.purchaseReadinessScore)}/100</strong> · Save{' '}
-              {formatCurrency(result.monthlySavingRequired, goal.currency)}/mo
-            </p>
+            {result.monthlySavingRequired > 0 && (
+              <p className="mt-2 text-xs text-ink-soft">
+                Suggested saving: <strong>{formatCurrency(result.monthlySavingRequired, goal.currency)}/mo</strong>
+              </p>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
