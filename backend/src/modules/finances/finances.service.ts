@@ -163,3 +163,15 @@ export async function createMandatoryExpense(userId: string, input: MandatoryExp
 export async function listMandatoryExpenses(userId: string): Promise<MandatoryExpenseDTO[]> {
   return (await prisma.mandatoryExpense.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } })).map(toMandatoryExpenseDTO);
 }
+
+export async function deleteIncome(userId: string, id: string): Promise<void> {
+  const existing = await prisma.income.findFirst({ where: { id, userId } });
+  if (!existing) throw AppError.notFound('Income not found');
+  await prisma.income.delete({ where: { id } });
+}
+
+export async function deleteMandatoryExpense(userId: string, id: string): Promise<void> {
+  const existing = await prisma.mandatoryExpense.findFirst({ where: { id, userId } });
+  if (!existing) throw AppError.notFound('Mandatory expense not found');
+  await prisma.mandatoryExpense.delete({ where: { id } });
+}

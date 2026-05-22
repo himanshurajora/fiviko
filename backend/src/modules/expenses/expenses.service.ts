@@ -3,6 +3,7 @@ import type { Expense } from '@prisma/client';
 import {
   ExpenseCategory,
   type ExpenseDTO,
+  type ExpenseTrendPoint,
   type MonthlySummary,
   type NeedOrWant,
   type PaymentMethod,
@@ -200,6 +201,29 @@ export async function monthlySummary(userId: string, month?: string): Promise<Mo
     remainingSafeSpend,
     overBudget: total > monthlyBudget,
   };
+}
+
+/** Total base-currency spending for each of the last `months` calendar months. */
+export async function expenseTrend(userId: string, months = 6): Promise<ExpenseTrendPoint[]> {
+  const now = new Date();
+  const span = Math.min(24, Math.max(1, months));
+  const start = new Date(Date.UTC(now.getFullYear(), now.getMonth() - (span - 1), 1));
+
+  const rows = await prisma.expense.findMany({
+    where: { userId, date: { gte: start } },
+    select: { date: true, baseCurrencyAmount: true },
+  });
+
+  const totals = new Map<string, number>();
+  for (let i = 0; i < span; i++) {
+    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth() - (span - 1) + i, 1));
+    totals.set(toMonthKey(d), 0);
+  }
+  for (const r of rows) {
+    const key = toMonthKey(r.date);
+    if (totals.has(key)) totals.set(key, (totals.get(key) ?? 0) + dec(r.baseCurrencyAmount));
+  }
+  return [...totals.entries()].map(([month, total]) => ({ month, total: round2(total) }));
 }
 
 // --- helpers --------------------------------------------------------------

@@ -36,8 +36,10 @@ export const incomesRouter = Router();
 incomesRouter.use(requireAuth);
 incomesRouter.post('/', validateBody(incomeSchema), asyncHandler(async (req, res) => res.status(201).json(await svc.createIncome(uid(req), req.body))));
 incomesRouter.get('/', asyncHandler(async (req, res) => res.json(await svc.listIncomes(uid(req)))));
+incomesRouter.delete('/:id', asyncHandler(async (req, res) => { await svc.deleteIncome(uid(req), req.params.id); res.json({ ok: true }); }));
 
 export const mandatoryExpensesRouter = Router();
 mandatoryExpensesRouter.use(requireAuth);
 mandatoryExpensesRouter.post('/', validateBody(mandatoryExpenseSchema), asyncHandler(async (req, res) => res.status(201).json(await svc.createMandatoryExpense(uid(req), req.body))));
 mandatoryExpensesRouter.get('/', asyncHandler(async (req, res) => res.json(await svc.listMandatoryExpenses(uid(req)))));
+mandatoryExpensesRouter.delete('/:id', asyncHandler(async (req, res) => { await svc.deleteMandatoryExpense(uid(req), req.params.id); res.json({ ok: true }); }));

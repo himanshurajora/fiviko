@@ -3,6 +3,7 @@ import { AppError } from '../../lib/http.js';
 import {
   createExpense,
   deleteExpense,
+  expenseTrend,
   listExpenses,
   monthlySummary,
   syncOffline,
@@ -27,6 +28,11 @@ export async function getExpenses(req: Request, res: Response): Promise<void> {
 export async function getMonthlySummary(req: Request, res: Response): Promise<void> {
   const month = typeof req.query.month === 'string' ? req.query.month : undefined;
   res.json(await monthlySummary(userId(req), month));
+}
+
+export async function getTrend(req: Request, res: Response): Promise<void> {
+  const months = req.query.months ? Number(req.query.months) : 6;
+  res.json(await expenseTrend(userId(req), Number.isFinite(months) ? months : 6));
 }
 
 export async function putExpense(req: Request, res: Response): Promise<void> {

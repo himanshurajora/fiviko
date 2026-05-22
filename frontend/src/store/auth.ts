@@ -14,6 +14,8 @@ interface AuthState {
     baseCurrency: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
+  /** Permanently delete the account and clear the local session. */
+  deleteAccount: () => Promise<void>;
   /** Restore session from a stored token on app boot. */
   bootstrap: () => Promise<void>;
   setUser: (user: UserDTO) => void;
@@ -38,6 +40,15 @@ export const useAuth = create<AuthState>((set) => ({
   async logout() {
     try {
       await api.post('/auth/logout');
+    } finally {
+      setAuthToken(null);
+      set({ user: null });
+    }
+  },
+
+  async deleteAccount() {
+    try {
+      await api.delete('/auth/me');
     } finally {
       setAuthToken(null);
       set({ user: null });

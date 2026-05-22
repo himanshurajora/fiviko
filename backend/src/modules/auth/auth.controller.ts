@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { env } from '../../config/env.js';
 import { AppError } from '../../lib/http.js';
-import { getUserById, loginUser, registerUser } from './auth.service.js';
+import { deleteUser, getUserById, loginUser, registerUser } from './auth.service.js';
 
 const COOKIE_NAME = 'token';
 const cookieOptions = {
@@ -33,4 +33,11 @@ export async function me(req: Request, res: Response): Promise<void> {
   if (!req.user) throw AppError.unauthorized();
   const user = await getUserById(req.user.id);
   res.json({ user });
+}
+
+export async function deleteAccount(req: Request, res: Response): Promise<void> {
+  if (!req.user) throw AppError.unauthorized();
+  await deleteUser(req.user.id);
+  res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: undefined });
+  res.json({ ok: true });
 }

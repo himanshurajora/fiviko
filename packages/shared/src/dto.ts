@@ -175,6 +175,13 @@ export interface ExpenseDTO {
   createdAt: string;
 }
 
+/** One point on the multi-month spending trend (spec §16). */
+export interface ExpenseTrendPoint {
+  /** YYYY-MM */
+  month: string;
+  total: number;
+}
+
 /** Spending rollup for one calendar month (spec §8.4). Amounts in base currency. */
 export interface MonthlySummary {
   /** YYYY-MM */

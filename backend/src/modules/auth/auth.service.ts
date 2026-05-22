@@ -55,6 +55,11 @@ export async function getUserById(id: string): Promise<UserDTO> {
   return toUserDTO(user);
 }
 
+/** Permanently deletes the user and all related data (cascades via schema). */
+export async function deleteUser(id: string): Promise<void> {
+  await prisma.user.delete({ where: { id } });
+}
+
 function issueToken(user: User): string {
   return signToken({ sub: user.id, email: user.email });
 }

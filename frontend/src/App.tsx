@@ -12,6 +12,8 @@ import { Goals } from '@/pages/Goals';
 import { AddGoal } from '@/pages/AddGoal';
 import { GoalDetail } from '@/pages/GoalDetail';
 import { Badges } from '@/pages/Badges';
+import { Reports } from '@/pages/Reports';
+import { About } from '@/pages/About';
 import { Profile } from '@/pages/Profile';
 
 /** Forces new users through onboarding before they can reach the main app. */
@@ -48,6 +50,8 @@ export default function App() {
             <Route path="goals/new" element={<AddGoal />} />
             <Route path="goals/:id" element={<GoalDetail />} />
             <Route path="badges" element={<Badges />} />
+            <Route path="reports" element={<Reports />} />
+            <Route path="about" element={<About />} />
             <Route path="profile" element={<Profile />} />
           </Route>
         </Route>

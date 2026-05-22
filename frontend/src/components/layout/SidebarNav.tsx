@@ -6,8 +6,9 @@ const ITEMS = [
   { to: '/app', label: 'Dashboard', icon: '🏠', end: true },
   { to: '/app/expenses', label: 'Expenses', icon: '🧾', end: false },
   { to: '/app/goals', label: 'Goals', icon: '🎯', end: false },
+  { to: '/app/reports', label: 'Reports', icon: '📊', end: false },
   { to: '/app/badges', label: 'Badges', icon: '🏅', end: false },
-  { to: '/app/profile', label: 'Profile', icon: '👤', end: false },
+  { to: '/app/profile', label: 'Settings', icon: '⚙️', end: false },
 ];
 
 /** Persistent left navigation for tablet and desktop (hidden on phones). */

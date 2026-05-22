@@ -6,6 +6,7 @@ import { createExpenseSchema, syncOfflineSchema, updateExpenseSchema } from './e
 import {
   getExpenses,
   getMonthlySummary,
+  getTrend,
   postExpense,
   postSyncOffline,
   putExpense,
@@ -19,6 +20,7 @@ expensesRouter.use(requireAuth);
 expensesRouter.post('/', validateBody(createExpenseSchema), asyncHandler(postExpense));
 expensesRouter.get('/', asyncHandler(getExpenses));
 expensesRouter.get('/monthly-summary', asyncHandler(getMonthlySummary));
+expensesRouter.get('/trend', asyncHandler(getTrend));
 expensesRouter.post('/sync-offline', validateBody(syncOfflineSchema), asyncHandler(postSyncOffline));
 expensesRouter.put('/:id', validateBody(updateExpenseSchema), asyncHandler(putExpense));
 expensesRouter.delete('/:id', asyncHandler(removeExpense));
