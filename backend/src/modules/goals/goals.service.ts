@@ -13,6 +13,7 @@ import { AppError } from '../../lib/http.js';
 import { convertCurrency } from '../../lib/currency.js';
 import { getFinancialSummary } from '../profile/profile.service.js';
 import { computeSavingsSplit, type SplitGoalInput } from '../scoring/savings-split.js';
+import { awardBadge } from '../badges/badges.service.js';
 import { scorePurchase, type CompetingGoal, type ScoringContext } from '../scoring/scoring.engine.js';
 import type { CreateGoalInput, ScoreInput, UpdateGoalInput } from './goals.schema.js';
 
@@ -96,6 +97,10 @@ export async function createGoal(userId: string, input: CreateGoalInput): Promis
       notes: input.notes ?? null,
     },
   });
+  // Unlock the "First Goal Created" badge (idempotent), plus a dream-planner
+  // badge for long-term goals.
+  await awardBadge(userId, 'FIRST_GOAL');
+  if (input.type === 'LONG_TERM') await awardBadge(userId, 'DREAM_PLANNER');
   return toGoalDTO(goal);
 }
 

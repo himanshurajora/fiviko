@@ -23,8 +23,8 @@ export function Register() {
     setLoading(true);
     try {
       await register(form);
-      // New users head to onboarding to build their financial profile.
-      navigate('/app', { replace: true });
+      // New users head to the gamified onboarding to build their profile.
+      navigate('/onboarding', { replace: true });
     } catch (err) {
       setError(getErrorMessage(err, 'Could not create account'));
     } finally {

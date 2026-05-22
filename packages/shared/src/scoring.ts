@@ -1,4 +1,5 @@
 import type { Recommendation } from './enums.js';
+import type { FinancialSummary } from './dto.js';
 
 /**
  * The thirteen 1–100 subjective scores a user answers when creating a goal.
@@ -134,6 +135,20 @@ export const CATEGORY_NET_WORTH_MULTIPLIER: Record<string, number> = {
   EMERGENCY_FUND: 1,
   OTHER: 4,
 };
+
+/**
+ * A transparent 0–100 financial-health score blending emergency-fund health,
+ * monthly-surplus health and debt pressure. Shared so the dashboard, onboarding
+ * reveal and backend all report the same number.
+ */
+export function computeHealthScore(s: FinancialSummary): number {
+  const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+  const emergency = s.emergencyFundHealth * 100;
+  const surplus = s.monthlyIncome > 0 ? clamp01(s.monthlySurplus / s.monthlyIncome) * 100 : 0;
+  const debt = (1 - Math.min(1, s.debtToIncomeRatio / 0.5)) * 100;
+  const score = emergency * 0.4 + surplus * 0.35 + debt * 0.25;
+  return Math.round(clamp01(score / 100) * 100);
+}
 
 /** A single named factor that contributed to the score, for transparent explanations. */
 export interface ScoreFactor {

@@ -1,10 +1,16 @@
 import type {
+  AssetType,
   ExpenseCategory,
   FinancialPersonality,
+  Frequency,
   GoalCategory,
   GoalPriority,
   GoalStatus,
   GoalType,
+  IncomeType,
+  LiabilityType,
+  LiquidityType,
+  MandatoryExpenseCategory,
   NeedOrWant,
   PaymentMethod,
   Recommendation,
@@ -75,6 +81,79 @@ export interface GoalDTO {
   recommendation?: Recommendation;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AssetDTO {
+  id: string;
+  type: AssetType;
+  name: string;
+  amount: number;
+  currency: string;
+  baseCurrencyAmount: number;
+  liquidityType: LiquidityType;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LiabilityDTO {
+  id: string;
+  type: LiabilityType;
+  name: string;
+  outstandingAmount: number;
+  monthlyPayment: number;
+  currency: string;
+  baseCurrencyOutstandingAmount: number;
+  baseCurrencyMonthlyPayment: number;
+  interestRate: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IncomeDTO {
+  id: string;
+  type: IncomeType;
+  amount: number;
+  currency: string;
+  baseCurrencyAmount: number;
+  frequency: Frequency;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MandatoryExpenseDTO {
+  id: string;
+  category: MandatoryExpenseCategory;
+  amount: number;
+  currency: string;
+  baseCurrencyAmount: number;
+  frequency: Frequency;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Single-shot payload submitted at the end of the gamified onboarding (spec §8.2). */
+export interface OnboardingPayload {
+  baseCurrency: string;
+  financialPersonality: FinancialPersonality;
+  incomes: { type: IncomeType; amount: number; frequency: Frequency }[];
+  mandatoryExpenses: { category: MandatoryExpenseCategory; amount: number; frequency: Frequency }[];
+  assets: { type: AssetType; name: string; amount: number; liquidityType: LiquidityType }[];
+  liabilities: { type: LiabilityType; name: string; outstandingAmount: number; monthlyPayment: number }[];
+  firstGoal?: {
+    name: string;
+    type: GoalType;
+    category: GoalCategory;
+    targetAmount: number;
+    priority: GoalPriority;
+  } | null;
+}
+
+export interface OnboardingResult {
+  summary: FinancialSummary;
+  /** Health score 0–100 shown on the reveal step. */
+  healthScore: number;
+  unlockedBadges: BadgeDTO[];
+  goalId: string | null;
 }
 
 export interface ExpenseDTO {

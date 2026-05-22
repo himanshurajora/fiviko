@@ -1,4 +1,4 @@
-import type { FinancialSummary } from '@fiviko/shared';
+import { computeHealthScore, type FinancialSummary } from '@fiviko/shared';
 import { Card } from '@/components/ui/Card';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { formatCurrency } from '@/lib/format';
@@ -40,21 +40,8 @@ function Mini({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Transparent 0–100 health score (frontend mirror; backend remains source of truth). */
-export function computeHealthScore(s: FinancialSummary): number {
-  const emergency = s.emergencyFundHealth * 100; // 0–100
-  const surplus = s.monthlyIncome > 0 ? clamp01(s.monthlySurplus / s.monthlyIncome) * 100 : 0;
-  const debt = (1 - Math.min(1, s.debtToIncomeRatio / 0.5)) * 100; // 0% DTI -> 100, 50%+ -> 0
-  const score = emergency * 0.4 + surplus * 0.35 + debt * 0.25;
-  return Math.round(clamp01(score / 100) * 100);
-}
-
 function healthMessage(score: number): string {
   if (score >= 70) return 'You’re in great shape — keep it up!';
   if (score >= 40) return 'Solid start. A bigger buffer would help.';
   return 'Let’s build a safety cushion together.';
-}
-
-function clamp01(n: number): number {
-  return Math.max(0, Math.min(1, n));
 }

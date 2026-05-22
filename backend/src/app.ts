@@ -9,6 +9,14 @@ import { authRouter } from './modules/auth/auth.routes.js';
 import { profileRouter } from './modules/profile/profile.routes.js';
 import { goalsRouter } from './modules/goals/goals.routes.js';
 import { expensesRouter } from './modules/expenses/expenses.routes.js';
+import {
+  assetsRouter,
+  incomesRouter,
+  liabilitiesRouter,
+  mandatoryExpensesRouter,
+} from './modules/finances/finances.routes.js';
+import { badgesRouter, userBadgesRouter } from './modules/badges/badges.routes.js';
+import { onboardingRouter } from './modules/onboarding/onboarding.routes.js';
 
 export function createApp() {
   const app = express();
@@ -34,6 +42,13 @@ export function createApp() {
   app.use('/api/profile', profileRouter);
   app.use('/api/goals', goalsRouter);
   app.use('/api/expenses', expensesRouter);
+  app.use('/api/assets', assetsRouter);
+  app.use('/api/liabilities', liabilitiesRouter);
+  app.use('/api/incomes', incomesRouter);
+  app.use('/api/mandatory-expenses', mandatoryExpensesRouter);
+  app.use('/api/badges', badgesRouter);
+  app.use('/api/user-badges', userBadgesRouter);
+  app.use('/api/onboarding', onboardingRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
