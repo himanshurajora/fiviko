@@ -9,6 +9,7 @@ import {
   syncOffline,
   updateExpense,
 } from './expenses.service.js';
+import { generateRecurringForUser } from './recurring.service.js';
 import { listQuerySchema } from './expenses.schema.js';
 
 function userId(req: Request): string {
@@ -46,4 +47,9 @@ export async function removeExpense(req: Request, res: Response): Promise<void> 
 
 export async function postSyncOffline(req: Request, res: Response): Promise<void> {
   res.json(await syncOffline(userId(req), req.body));
+}
+
+export async function postGenerateRecurring(req: Request, res: Response): Promise<void> {
+  const created = await generateRecurringForUser(userId(req));
+  res.json({ created });
 }

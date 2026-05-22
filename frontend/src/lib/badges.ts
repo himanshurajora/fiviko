@@ -19,6 +19,7 @@ export function useSubmitOnboarding() {
       void qc.invalidateQueries({ queryKey: ['profile', 'summary'] });
       void qc.invalidateQueries({ queryKey: ['goals'] });
       void qc.invalidateQueries({ queryKey: ['badges'] });
+      void qc.invalidateQueries({ queryKey: ['level'] });
     },
   });
 }

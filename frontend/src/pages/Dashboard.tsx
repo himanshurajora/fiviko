@@ -2,11 +2,12 @@ import { StreakType, UserChallengeStatus } from '@fiviko/shared';
 import { useAuth } from '@/store/auth';
 import { useExpenseModal } from '@/store/expenseModal';
 import { useFinancialSummary } from '@/lib/queries';
-import { useChallenges, useStreaks } from '@/lib/gamification';
+import { useChallenges, useLevel, useStreaks } from '@/lib/gamification';
 import { FinancialHealthCard } from '@/components/dashboard/FinancialHealthCard';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { StreakCard } from '@/components/gamification/StreakCard';
 import { ChallengeCard } from '@/components/gamification/ChallengeCard';
+import { LevelBadge } from '@/components/gamification/LevelBadge';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency, greeting } from '@/lib/format';
@@ -17,6 +18,7 @@ export function Dashboard() {
   const { data: summary, isLoading, isError } = useFinancialSummary();
   const { data: streaks } = useStreaks();
   const { data: challenges } = useChallenges();
+  const { data: level } = useLevel();
   const currency = summary?.baseCurrency ?? user?.baseCurrency ?? 'USD';
 
   const loggingStreak = streaks?.find((s) => s.type === StreakType.ExpenseLogging);
@@ -28,14 +30,18 @@ export function Dashboard() {
   return (
     <div className="flex flex-col gap-4 md:gap-6">
       {/* Greeting (avatar hidden on desktop where the sidebar shows the user). */}
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-ink-soft">{greeting()},</p>
           <h1 className="text-2xl font-extrabold text-ink md:text-3xl">{user?.name ?? 'there'} 👋</h1>
         </div>
-        <span className="grid h-11 w-11 place-items-center rounded-full bg-gradient-primary text-lg font-bold text-white md:hidden">
-          {(user?.name ?? 'F').charAt(0).toUpperCase()}
-        </span>
+        {level ? (
+          <LevelBadge level={level} />
+        ) : (
+          <span className="grid h-11 w-11 place-items-center rounded-full bg-gradient-primary text-lg font-bold text-white md:hidden">
+            {(user?.name ?? 'F').charAt(0).toUpperCase()}
+          </span>
+        )}
       </header>
 
       {isLoading && <DashboardSkeleton />}

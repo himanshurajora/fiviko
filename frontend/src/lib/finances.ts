@@ -19,6 +19,7 @@ function invalidateProfile(qc: QueryClient): void {
   }
   void qc.invalidateQueries({ queryKey: ['profile', 'summary'] });
   void qc.invalidateQueries({ queryKey: ['goals'] });
+  void qc.invalidateQueries({ queryKey: ['level'] });
 }
 
 export function useAssets() {

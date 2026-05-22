@@ -1,6 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { StreakType, type ChallengeDTO, type StreakDTO } from '@fiviko/shared';
+import { StreakType, type ChallengeDTO, type LevelDTO, type StreakDTO } from '@fiviko/shared';
 import { api } from './api';
+
+export function useLevel() {
+  return useQuery({
+    queryKey: ['level'],
+    queryFn: async (): Promise<LevelDTO> => (await api.get('/level')).data,
+  });
+}
 
 export function useStreaks() {
   return useQuery({

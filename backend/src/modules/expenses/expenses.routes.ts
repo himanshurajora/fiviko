@@ -8,6 +8,7 @@ import {
   getMonthlySummary,
   getTrend,
   postExpense,
+  postGenerateRecurring,
   postSyncOffline,
   putExpense,
   removeExpense,
@@ -22,5 +23,6 @@ expensesRouter.get('/', asyncHandler(getExpenses));
 expensesRouter.get('/monthly-summary', asyncHandler(getMonthlySummary));
 expensesRouter.get('/trend', asyncHandler(getTrend));
 expensesRouter.post('/sync-offline', validateBody(syncOfflineSchema), asyncHandler(postSyncOffline));
+expensesRouter.post('/generate-recurring', asyncHandler(postGenerateRecurring));
 expensesRouter.put('/:id', validateBody(updateExpenseSchema), asyncHandler(putExpense));
 expensesRouter.delete('/:id', asyncHandler(removeExpense));

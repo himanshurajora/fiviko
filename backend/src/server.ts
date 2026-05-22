@@ -1,6 +1,7 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { prisma } from './lib/prisma.js';
+import { startScheduler } from './scheduler.js';
 
 async function main() {
   const app = createApp();
@@ -8,6 +9,8 @@ async function main() {
   const server = app.listen(env.PORT, () => {
     console.log(`🚀 Fiviko API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
   });
+
+  startScheduler();
 
   // Graceful shutdown so Prisma releases its connection pool cleanly.
   const shutdown = async (signal: string) => {

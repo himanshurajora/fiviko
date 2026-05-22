@@ -3,6 +3,8 @@ import { Frequency, LiquidityType } from '@fiviko/shared';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ProfileSection, type AddFormValue, type ProfileItem } from '@/components/settings/ProfileSection';
+import { LevelBadge } from '@/components/gamification/LevelBadge';
+import { useLevel } from '@/lib/gamification';
 import { useAuth } from '@/store/auth';
 import {
   useAssetMutations,
@@ -42,6 +44,7 @@ export function Profile() {
   const assetM = useAssetMutations();
   const liabilityM = useLiabilityMutations();
 
+  const { data: level } = useLevel();
   const personality = PERSONALITY_OPTIONS.find((p) => p.value === user?.financialPersonality);
 
   async function onLogout() {
@@ -70,6 +73,15 @@ export function Profile() {
           </p>
         </div>
       </Card>
+
+      {level && (
+        <Card padded animate={false} className="bg-gradient-primary">
+          <LevelBadge level={level} variant="light" />
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/25">
+            <div className="h-full rounded-full bg-white" style={{ width: `${Math.round(level.progress * 100)}%` }} />
+          </div>
+        </Card>
+      )}
 
       {/* Quick links */}
       <div className="grid grid-cols-2 gap-3">

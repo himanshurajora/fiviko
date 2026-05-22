@@ -19,6 +19,7 @@ import { badgesRouter, userBadgesRouter } from './modules/badges/badges.routes.j
 import { onboardingRouter } from './modules/onboarding/onboarding.routes.js';
 import { streaksRouter } from './modules/streaks/streaks.routes.js';
 import { challengesRouter } from './modules/challenges/challenges.routes.js';
+import { levelRouter } from './modules/level/level.routes.js';
 
 export function createApp() {
   const app = express();
@@ -53,6 +54,7 @@ export function createApp() {
   app.use('/api/onboarding', onboardingRouter);
   app.use('/api/streaks', streaksRouter);
   app.use('/api/challenges', challengesRouter);
+  app.use('/api/level', levelRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

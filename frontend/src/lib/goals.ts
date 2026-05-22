@@ -48,7 +48,11 @@ export function useCreateGoal() {
   return useMutation({
     mutationFn: async (payload: CreateGoalPayload): Promise<GoalDTO> =>
       (await api.post('/goals', payload)).data,
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['goals'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['goals'] });
+      void qc.invalidateQueries({ queryKey: ['badges'] });
+      void qc.invalidateQueries({ queryKey: ['level'] });
+    },
   });
 }
 
@@ -56,7 +60,11 @@ export function useDeleteGoal() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/goals/${id}`)).data,
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['goals'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['goals'] });
+      void qc.invalidateQueries({ queryKey: ['badges'] });
+      void qc.invalidateQueries({ queryKey: ['level'] });
+    },
   });
 }
 
