@@ -4,7 +4,14 @@ import { asyncHandler, AppError } from '../../lib/http.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { validateBody } from '../../middleware/validate.js';
 import { isAiEnabled } from '../../lib/openai.js';
-import { coachAsk, explainDecision, monthlyReport, savingsTips } from './ai.service.js';
+import {
+  coachAsk,
+  configureGoalFromText,
+  explainDecision,
+  monthlyReport,
+  parseExpenseText,
+  savingsTips,
+} from './ai.service.js';
 import type { Request } from 'express';
 
 const uid = (req: Request): string => {
@@ -13,6 +20,7 @@ const uid = (req: Request): string => {
 };
 
 const askSchema = z.object({ question: z.string().min(1).max(500) });
+const textSchema = z.object({ text: z.string().min(1).max(400) });
 
 export const aiRouter = Router();
 aiRouter.use(requireAuth);
@@ -39,4 +47,16 @@ aiRouter.post(
 aiRouter.get(
   '/explain/:goalId',
   asyncHandler(async (req, res) => res.json(await explainDecision(uid(req), req.params.goalId))),
+);
+
+aiRouter.post(
+  '/parse-expense',
+  validateBody(textSchema),
+  asyncHandler(async (req, res) => res.json(await parseExpenseText(uid(req), req.body.text))),
+);
+
+aiRouter.post(
+  '/configure-goal',
+  validateBody(textSchema),
+  asyncHandler(async (req, res) => res.json(await configureGoalFromText(uid(req), req.body.text))),
 );

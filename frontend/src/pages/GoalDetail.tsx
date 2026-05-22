@@ -6,15 +6,22 @@ import { PurchaseScoreCard } from '@/components/goals/PurchaseScoreCard';
 import { WhatIfSimulator } from '@/components/goals/WhatIfSimulator';
 import { GoalEditor } from '@/components/goals/GoalEditor';
 import { ContributeControl } from '@/components/goals/ContributeControl';
-import { useDeleteGoal, useGoal } from '@/lib/goals';
+import { useDeleteGoal, useGoal, useGoalStatus } from '@/lib/goals';
 import { GOAL_CATEGORY_META } from '@/lib/goalMeta';
 import { formatCurrency } from '@/lib/format';
+import { notify } from '@/store/toast';
 
 export function GoalDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data, isLoading, isError } = useGoal(id);
   const deleteGoal = useDeleteGoal();
+  const { complete, reopen } = useGoalStatus(id ?? '');
+
+  async function onComplete() {
+    await complete.mutateAsync();
+    notify.custom('Marked as bought 🏆', { tone: 'success', icon: '🏆', sound: 'success' });
+  }
 
   async function onDelete() {
     if (!id || !window.confirm('Delete this goal? This cannot be undone.')) return;
@@ -82,6 +89,16 @@ export function GoalDetail() {
 
       {/* Edit fields & adjust scores */}
       <GoalEditor goal={goal} scoreInput={scoreInput} />
+
+      {goal.status === 'ACHIEVED' ? (
+        <Button variant="ghost" fullWidth onClick={() => reopen.mutate()} loading={reopen.isPending}>
+          ↩ Reopen goal
+        </Button>
+      ) : (
+        <Button variant="secondary" fullWidth onClick={onComplete} loading={complete.isPending}>
+          ✅ Mark as bought
+        </Button>
+      )}
 
       <Button variant="ghost" fullWidth onClick={onDelete} className="text-danger">
         Delete goal

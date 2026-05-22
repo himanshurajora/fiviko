@@ -14,6 +14,7 @@ import { Card } from '@/components/ui/Card';
 import { SliderQuestion } from '@/components/goals/SliderQuestion';
 import { useAuth } from '@/store/auth';
 import { useCreateGoal, type CreateGoalPayload } from '@/lib/goals';
+import { useAiStatus, useConfigureGoal } from '@/lib/ai';
 import { GOAL_CATEGORY_META, GOAL_CATEGORY_OPTIONS, GOAL_PRIORITY_OPTIONS, GOAL_TYPE_OPTIONS } from '@/lib/goalMeta';
 import { GOAL_SCORE_PRESETS } from '@/lib/goalPresets';
 import { SUPPORTED_CURRENCIES } from '@/lib/currencies';
@@ -47,8 +48,33 @@ export function AddGoal() {
   const [fineTuned, setFineTuned] = useState(false);
   const [showFineTune, setShowFineTune] = useState(false);
 
+  const { data: aiStatus } = useAiStatus();
+  const configureGoal = useConfigureGoal();
+  const [describe, setDescribe] = useState('');
+
   const set = <K extends keyof CreateGoalPayload>(key: K, value: CreateGoalPayload[K]) =>
     setDetails((d) => ({ ...d, [key]: value }));
+
+  // Let AI draft the whole goal (fields + 1–100 scores) from a description.
+  async function applyAiConfig() {
+    if (describe.trim().length < 3) return;
+    try {
+      const cfg = await configureGoal.mutateAsync(describe.trim());
+      setDetails((d) => ({
+        ...d,
+        name: cfg.name || d.name,
+        category: cfg.category as GoalCategory,
+        type: cfg.type as typeof d.type,
+        priority: cfg.priority as typeof d.priority,
+        targetAmount: cfg.targetAmount || d.targetAmount,
+      }));
+      setScores(cfg.scores as unknown as GoalScoreInputValues);
+      setFineTuned(true); // keep AI's scores; don't overwrite from category preset
+      notify.custom('Drafted by AI ✨ — tweak anything below', { tone: 'success', icon: '✨', sound: 'pop' });
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not configure the goal'));
+    }
+  }
 
   function selectCategory(category: GoalCategory) {
     set('category', category);
@@ -107,6 +133,22 @@ export function AddGoal() {
 
       {step === 1 && (
         <motion.form initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} onSubmit={goToScores} className="flex flex-col gap-4">
+          {aiStatus?.enabled && (
+            <Card padded animate={false} className="bg-primary/5">
+              <p className="text-sm font-semibold text-ink">✨ Describe it, let AI set it up</p>
+              <div className="mt-2 flex items-end gap-2">
+                <input
+                  value={describe}
+                  onChange={(e) => setDescribe(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyAiConfig(); } }}
+                  placeholder="e.g. a reliable used car for my commute, around 8000"
+                  className="focus-ring h-11 flex-1 rounded-2xl border border-muted-border bg-surface px-3 text-sm"
+                />
+                <Button type="button" onClick={applyAiConfig} loading={configureGoal.isPending}>Draft</Button>
+              </div>
+            </Card>
+          )}
+
           <TextField label="What are you saving for?" name="name" placeholder="e.g. Work laptop" value={details.name} onChange={(e) => set('name', e.target.value)} />
 
           <div className="flex flex-col gap-1.5">

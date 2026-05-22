@@ -161,14 +161,54 @@ export async function updateGoal(userId: string, goalId: string, input: UpdateGo
     const cur = currency ?? (await getGoal(userId, goalId)).currency;
     data.baseCurrencyTargetAmount = new Prisma.Decimal(await convertCurrency(input.targetAmount, cur, user.baseCurrency));
   }
+  let savedBase: number | null = null;
   if (input.currentSavedAmount !== undefined) {
     data.currentSavedAmount = new Prisma.Decimal(input.currentSavedAmount);
     const cur = currency ?? (await getGoal(userId, goalId)).currency;
-    data.baseCurrencyCurrentSavedAmount = new Prisma.Decimal(await convertCurrency(input.currentSavedAmount, cur, user.baseCurrency));
+    savedBase = await convertCurrency(input.currentSavedAmount, cur, user.baseCurrency);
+    data.baseCurrencyCurrentSavedAmount = new Prisma.Decimal(savedBase);
+  }
+
+  // Auto-complete: editing saved up to (or past) the target marks it achieved.
+  if (savedBase != null) {
+    const existing = await getGoal(userId, goalId);
+    const target = input.targetAmount != null
+      ? await convertCurrency(input.targetAmount, currency ?? existing.currency, user.baseCurrency)
+      : dec(existing.baseCurrencyTargetAmount);
+    if (savedBase >= target && existing.status === GoalStatus.Active) {
+      data.status = GoalStatus.Achieved;
+      await awardBadge(userId, 'GOAL_ACHIEVER');
+    }
   }
 
   const goal = await prisma.goal.update({ where: { id: goalId }, data, include: { recommendation: true } });
   // Re-score this goal and all others (target/saved/priority changes ripple out).
+  await recomputeActiveGoals(userId);
+  return toGoalDTO(goal);
+}
+
+/** Manually mark a goal as bought/achieved (independent of saved amount). */
+export async function markGoalAchieved(userId: string, goalId: string): Promise<GoalDTO> {
+  await getGoal(userId, goalId);
+  const goal = await prisma.goal.update({
+    where: { id: goalId },
+    data: { status: GoalStatus.Achieved },
+    include: { recommendation: true },
+  });
+  await awardBadge(userId, 'GOAL_ACHIEVER');
+  // Achieving frees the savings pool for the remaining goals.
+  await recomputeActiveGoals(userId);
+  return toGoalDTO(goal);
+}
+
+/** Reopen an achieved/paused goal back to active. */
+export async function reopenGoal(userId: string, goalId: string): Promise<GoalDTO> {
+  await getGoal(userId, goalId);
+  const goal = await prisma.goal.update({
+    where: { id: goalId },
+    data: { status: GoalStatus.Active },
+    include: { recommendation: true },
+  });
   await recomputeActiveGoals(userId);
   return toGoalDTO(goal);
 }

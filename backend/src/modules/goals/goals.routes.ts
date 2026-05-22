@@ -7,9 +7,11 @@ import {
   getGoalById,
   getGoals,
   getRecommendation,
+  postComplete,
   postContribute,
   postGoal,
   postRecalculate,
+  postReopen,
   postScoreInput,
   postWhatIf,
   putGoal,
@@ -31,3 +33,5 @@ goalsRouter.get('/:id/recommendation', asyncHandler(getRecommendation));
 goalsRouter.post('/:id/recalculate', asyncHandler(postRecalculate));
 goalsRouter.post('/:id/what-if', validateBody(whatIfSchema), asyncHandler(postWhatIf));
 goalsRouter.post('/:id/contribute', validateBody(contributeSchema), asyncHandler(postContribute));
+goalsRouter.post('/:id/complete', asyncHandler(postComplete));
+goalsRouter.post('/:id/reopen', asyncHandler(postReopen));

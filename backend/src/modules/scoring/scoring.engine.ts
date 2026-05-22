@@ -130,8 +130,18 @@ export function scorePurchase(ctx: ScoringContext): RecommendationResult {
       goalConflictScore * cw.goalConflictPenalty,
   );
 
-  // --- Hard-warning rules (spec §17) --------------------------------------
+  // --- Affordability --------------------------------------------------------
+  const remaining = Math.max(0, targetAmount - ctx.currentSaved);
   const emergencyTarget = s.emergencyFundTarget;
+  const liquidAfterPurchase = s.liquidNetWorth - remaining;
+  // "Affordable now" = you can pay the outstanding amount from liquid today,
+  // keep the emergency fund intact, and stay surplus-positive afterwards. When
+  // true, "save up and wait" is wrong advice — the only question is whether it's
+  // worth buying at all.
+  const affordableNow =
+    remaining <= s.liquidNetWorth && liquidAfterPurchase >= emergencyTarget && postPurchaseSurplus >= 0;
+
+  // --- Hard-warning rules (spec §17) --------------------------------------
   const cannotCoverMandatory = liquidAfter < s.monthlyMandatoryExpenses * SAFETY_THRESHOLDS.minLiquidityMonthsAfterPurchase;
   const breaksEmergency = liquidAfter < emergencyTarget && s.emergencyFundHealth < 0.5;
   const highCostLowNeed = scores.necessity < 30 && scores.dreamLuxury > 70 && targetAmount > s.monthlyIncome;
@@ -142,26 +152,25 @@ export function scorePurchase(ctx: ScoringContext): RecommendationResult {
     breaksEmergency ||
     highCostLowNeed;
 
-  const recommendation = decideRecommendation(purchaseReadinessScore, hardWarning);
+  const recommendation = decideRecommendation(purchaseReadinessScore, hardWarning, affordableNow);
 
   // --- Saving plan & safe budget ------------------------------------------
-  const remaining = Math.max(0, targetAmount - ctx.currentSaved);
-  // What to save each month: hit the target date if one is set; otherwise use
-  // this goal's allocation from the savings split (the realistic pace given
-  // competing goals), falling back to a sensible horizon when there's no pool.
+  // No saving needed when you can already afford it; otherwise hit the target
+  // date if set, else save at this goal's allocated pace (capped at remaining).
   const horizonMonths = ctx.targetDate
     ? Math.max(1, monthsBetween(now, ctx.targetDate))
     : ctx.goalType === 'SHORT_TERM'
       ? 6
       : 24;
-  const monthlySavingRequired = ctx.targetDate
-    ? round(remaining / horizonMonths)
-    : ctx.allocatedMonthly > 0
-      ? round(ctx.allocatedMonthly)
-      : round(remaining / horizonMonths);
+  const monthlySavingRequired = affordableNow
+    ? 0
+    : ctx.targetDate
+      ? round(Math.min(remaining, remaining / horizonMonths))
+      : ctx.allocatedMonthly > 0
+        ? round(Math.min(ctx.allocatedMonthly, remaining))
+        : round(remaining / horizonMonths);
 
-  // Months until affordable, paced by the actual allocation (realistic), not the
-  // whole pool. Falls back to the pool if this goal isn't being allocated yet.
+  // Months until affordable, paced by the actual allocation (realistic).
   const pace = ctx.allocatedMonthly > 0 ? ctx.allocatedMonthly : ctx.monthlySavingsPool;
   const monthsToAfford = pace > 0 ? Math.ceil(remaining / pace) : null;
   const recommendedPurchaseDate =
@@ -218,12 +227,22 @@ export function scorePurchase(ctx: ScoringContext): RecommendationResult {
   };
 }
 
-function decideRecommendation(score: number, hardWarning: boolean): Recommendation {
+/**
+ * Maps the readiness score to a recommendation, gated by affordability:
+ *  - Below the floor → Not Recommended (just not worth it).
+ *  - Affordable now → Buy Now (you can pay without harm) unless it's low-merit.
+ *  - Not affordable yet → Wait / Reduce Budget (you'd need to save up first);
+ *    "Wait" is only ever used when saving is actually required.
+ */
+function decideRecommendation(score: number, hardWarning: boolean, affordableNow: boolean): Recommendation {
   if (hardWarning) return Recommendation.HardWarning;
-  if (score >= SAFETY_THRESHOLDS.buyNowAtOrAbove) return Recommendation.BuyNow;
+  if (score < SAFETY_THRESHOLDS.notRecommendedBelow) return Recommendation.NotRecommended;
+
+  if (affordableNow) return Recommendation.BuyNow;
+
+  // Can't comfortably pay yet — saving up is the path.
   if (score >= 55) return Recommendation.Wait;
-  if (score >= SAFETY_THRESHOLDS.notRecommendedBelow) return Recommendation.ReduceBudget;
-  return Recommendation.NotRecommended;
+  return Recommendation.ReduceBudget;
 }
 
 /**

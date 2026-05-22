@@ -44,3 +44,34 @@ export function useCoachAsk() {
     mutationFn: async (question: string): Promise<AiResult> => (await api.post('/ai/coach', { question })).data,
   });
 }
+
+export interface ParsedExpense {
+  amount: number;
+  currency: string;
+  category: string;
+  note: string | null;
+  needOrWant: string;
+}
+
+/** Parse a spoken/typed phrase into an expense draft. */
+export function useParseExpense() {
+  return useMutation({
+    mutationFn: async (text: string): Promise<ParsedExpense> => (await api.post('/ai/parse-expense', { text })).data,
+  });
+}
+
+export interface ConfiguredGoal {
+  name: string;
+  category: string;
+  type: string;
+  targetAmount: number;
+  priority: string;
+  scores: Record<string, number>;
+}
+
+/** Configure a goal draft from a free-text description. */
+export function useConfigureGoal() {
+  return useMutation({
+    mutationFn: async (text: string): Promise<ConfiguredGoal> => (await api.post('/ai/configure-goal', { text })).data,
+  });
+}

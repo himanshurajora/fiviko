@@ -34,6 +34,22 @@ export async function chat(system: string, user: string, maxTokens = 450): Promi
   return completion.choices[0]?.message?.content?.trim() ?? '';
 }
 
+/** Like {@link chat} but forces a JSON object response (for structured parsing). */
+export async function chatJson<T>(system: string, user: string, maxTokens = 300): Promise<T> {
+  const completion = await getClient().chat.completions.create({
+    model: env.OPENAI_MODEL,
+    max_tokens: maxTokens,
+    temperature: 0.2,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+  });
+  const text = completion.choices[0]?.message?.content?.trim() ?? '{}';
+  return JSON.parse(text) as T;
+}
+
 export const COACH_SYSTEM = [
   'You are Fiviko, a warm, encouraging personal-money coach inside a budgeting app.',
   'Use ONLY the financial data provided in the user message; never invent numbers.',

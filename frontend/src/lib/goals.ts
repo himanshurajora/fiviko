@@ -133,6 +133,26 @@ export function useContribute(goalId: string) {
   });
 }
 
+/** Mark a goal as bought/achieved (or reopen it). */
+export function useGoalStatus(goalId: string) {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ['goals'] });
+    void qc.invalidateQueries({ queryKey: ['goals', goalId] });
+    void qc.invalidateQueries({ queryKey: ['badges'] });
+    void qc.invalidateQueries({ queryKey: ['level'] });
+  };
+  const complete = useMutation({
+    mutationFn: async (): Promise<GoalDTO> => (await api.post(`/goals/${goalId}/complete`)).data,
+    onSuccess: invalidate,
+  });
+  const reopen = useMutation({
+    mutationFn: async (): Promise<GoalDTO> => (await api.post(`/goals/${goalId}/reopen`)).data,
+    onSuccess: invalidate,
+  });
+  return { complete, reopen };
+}
+
 export function useWhatIf(goalId: string) {
   return useMutation({
     mutationFn: async (overrideTargetAmount?: number): Promise<RecommendationResult> =>

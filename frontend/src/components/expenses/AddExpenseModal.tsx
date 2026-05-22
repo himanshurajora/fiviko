@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { NeedOrWant, PaymentMethod, type ExpenseCategory } from '@fiviko/shared';
 import { Button } from '@/components/ui/Button';
+import { VoiceQuickAdd } from './VoiceQuickAdd';
 import { useAddExpense, useUpdateExpense } from '@/lib/expenses';
 import { notify } from '@/store/toast';
 import { useExpenseModal } from '@/store/expenseModal';
@@ -124,6 +125,19 @@ export function AddExpenseModal() {
                 ✕
               </button>
             </div>
+
+            {/* Speak or type — AI fills the form (add mode only) */}
+            {!isEdit && (
+              <VoiceQuickAdd
+                onParsed={(e) => {
+                  setAmount(String(e.amount));
+                  setCurrency(e.currency);
+                  setCategory(e.category as ExpenseCategory);
+                  setNeedOrWant(e.needOrWant as NeedOrWant);
+                  if (e.note) setNote(e.note);
+                }}
+              />
+            )}
 
             {/* Amount first */}
             <div className="mt-4 flex items-center justify-center gap-2">

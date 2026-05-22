@@ -31,11 +31,18 @@ export function GoalCard({ goal }: { goal: GoalDTO }) {
               {formatCurrency(goal.targetAmount, goal.currency)}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {goal.recommendation && <RecommendationBadge recommendation={goal.recommendation} size="sm" />}
-              {goal.recommendedMonthlySaving != null && goal.recommendedMonthlySaving > 0 && (
-                <span className="text-xs text-ink-soft">
-                  Save {formatCurrency(goal.recommendedMonthlySaving, goal.currency)}/mo
-                </span>
+              {goal.status === 'ACHIEVED' ? (
+                <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-bold text-success">🏆 Achieved</span>
+              ) : (
+                <>
+                  {goal.recommendation && <RecommendationBadge recommendation={goal.recommendation} size="sm" />}
+                  {/* Only suggest a monthly saving when you actually need to save up. */}
+                  {goal.recommendation !== 'BUY_NOW' && goal.recommendedMonthlySaving != null && goal.recommendedMonthlySaving > 0 && (
+                    <span className="text-xs text-ink-soft">
+                      Save {formatCurrency(goal.recommendedMonthlySaving, goal.currency)}/mo
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>

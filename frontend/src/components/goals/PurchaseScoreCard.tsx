@@ -57,15 +57,21 @@ export function PurchaseScoreCard({
 
       {/* Saving plan */}
       <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-        <Info label="Save / month" value={formatCurrency(result.monthlySavingRequired, currency)} />
+        {result.monthlySavingRequired > 0 ? (
+          <Info label="Save / month" value={formatCurrency(result.monthlySavingRequired, currency)} />
+        ) : (
+          <Info label="Saving needed" value="None — affordable now" />
+        )}
         <Info
-          label="Safe budget"
+          label="Comfortable budget"
           value={`${formatCurrency(result.safeBudgetMin, currency)}–${formatCurrency(result.safeBudgetMax, currency)}`}
         />
         {result.recommendedPurchaseDate && (
           <Info
             label="Best time to buy"
-            value={new Date(result.recommendedPurchaseDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+            value={isThisMonth(result.recommendedPurchaseDate)
+              ? 'Now'
+              : new Date(result.recommendedPurchaseDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
           />
         )}
       </div>
@@ -98,6 +104,12 @@ function SubScore({ label, value, inverse }: { label: string; value: number; inv
       <p className={`text-lg font-extrabold ${color}`}>{Math.round(value)}</p>
     </div>
   );
+}
+
+function isThisMonth(iso: string): boolean {
+  const d = new Date(iso);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
 }
 
 function Info({ label, value }: { label: string; value: string }) {

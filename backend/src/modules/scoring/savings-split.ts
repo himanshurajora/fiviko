@@ -80,7 +80,9 @@ export function computeSavingsSplit(summary: FinancialSummary, goals: SplitGoalI
   const allocations: GoalAllocation[] = goals.map((g) => {
     const weight = goalWeight(g);
     const share = !noSurplus && totalWeight > 0 && g.remaining > 0 ? weight / totalWeight : 0;
-    const monthlyAllocation = round(monthlySavingsPool * share);
+    // Never allocate more than the goal still needs — a €500 goal shouldn't be
+    // told to save €1,300/mo just because its weight share of the pool is large.
+    const monthlyAllocation = round(Math.min(monthlySavingsPool * share, g.remaining));
     const monthsToComplete =
       monthlyAllocation > 0 ? Math.ceil(g.remaining / monthlyAllocation) : null;
     return {

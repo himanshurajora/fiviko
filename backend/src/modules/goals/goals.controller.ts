@@ -6,8 +6,10 @@ import {
   deleteGoal,
   getGoal,
   listGoals,
+  markGoalAchieved,
   recalculateRecommendation,
   recommendationRowToResult,
+  reopenGoal,
   saveScoreInput,
   simulateWhatIf,
   toGoalDTO,
@@ -72,4 +74,12 @@ export async function postWhatIf(req: Request, res: Response): Promise<void> {
 
 export async function postContribute(req: Request, res: Response): Promise<void> {
   res.json(await contributeToGoal(userId(req), req.params.id, req.body.amount, req.body.fromAssetId));
+}
+
+export async function postComplete(req: Request, res: Response): Promise<void> {
+  res.json(await markGoalAchieved(userId(req), req.params.id));
+}
+
+export async function postReopen(req: Request, res: Response): Promise<void> {
+  res.json(await reopenGoal(userId(req), req.params.id));
 }

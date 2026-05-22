@@ -1,5 +1,16 @@
+import {
+  ExpenseCategory,
+  GoalCategory,
+  GoalPriority,
+  GoalType,
+  NeedOrWant,
+  SCORE_QUESTIONS,
+  CATEGORY_SCORE_PRESETS,
+  type GoalScoreInputValues,
+} from '@fiviko/shared';
 import { AppError } from '../../lib/http.js';
-import { chat, COACH_SYSTEM } from '../../lib/openai.js';
+import { chat, chatJson, COACH_SYSTEM } from '../../lib/openai.js';
+import { prisma } from '../../lib/prisma.js';
 import { buildFinancialContext } from './ai.context.js';
 import { getGoal, recommendationRowToResult } from '../goals/goals.service.js';
 
@@ -124,4 +135,91 @@ export async function explainDecision(userId: string, goalId: string): Promise<A
   );
   setCached(key, text);
   return { text, cached: false };
+}
+
+// --- Structured parsing (voice expense, goal autoconfig) ------------------
+
+const clamp100 = (n: unknown): number => Math.max(1, Math.min(100, Math.round(Number(n) || 50)));
+const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
+  (allowed as readonly string[]).includes(String(v)) ? (v as T) : fallback;
+
+export interface ParsedExpense {
+  amount: number;
+  currency: string;
+  category: ExpenseCategory;
+  note: string | null;
+  needOrWant: NeedOrWant;
+}
+
+/** Turns a free-text / spoken phrase ("spent 12 euros on lunch") into an expense draft. */
+export async function parseExpenseText(userId: string, text: string): Promise<ParsedExpense> {
+  const trimmed = text.trim();
+  if (trimmed.length < 2) throw AppError.badRequest('Please say or type what you spent');
+  enforceRateLimit(userId);
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { baseCurrency: true } });
+  const baseCurrency = user?.baseCurrency ?? 'USD';
+
+  const categories = Object.values(ExpenseCategory).join(', ');
+  const parsed = await chatJson<Partial<ParsedExpense>>(
+    'You extract a single expense from the user phrase and return strict JSON. ' +
+      `Fields: amount (number), currency (3-letter, default ${baseCurrency}), ` +
+      `category (one of: ${categories}), note (short string or null), needOrWant ("NEED" or "WANT"). ` +
+      'Infer the category sensibly. If no amount is stated, set amount to 0.',
+    `Phrase: "${trimmed}"`,
+    200,
+  );
+
+  const amount = Number(parsed.amount);
+  if (!Number.isFinite(amount) || amount <= 0) throw AppError.badRequest('Couldn’t catch an amount — try “spent 12 on coffee”');
+  return {
+    amount: Math.round(amount * 100) / 100,
+    currency: typeof parsed.currency === 'string' && parsed.currency.length === 3 ? parsed.currency.toUpperCase() : baseCurrency,
+    category: oneOf(parsed.category, Object.values(ExpenseCategory), ExpenseCategory.Other),
+    note: typeof parsed.note === 'string' && parsed.note.trim() ? parsed.note.trim().slice(0, 120) : null,
+    needOrWant: oneOf(parsed.needOrWant, Object.values(NeedOrWant), NeedOrWant.Need),
+  };
+}
+
+export interface ConfiguredGoal {
+  name: string;
+  category: GoalCategory;
+  type: GoalType;
+  targetAmount: number;
+  priority: GoalPriority;
+  scores: GoalScoreInputValues;
+}
+
+/** Turns a description ("a reliable used car for my commute, ~8000") into a goal draft. */
+export async function configureGoalFromText(userId: string, description: string): Promise<ConfiguredGoal> {
+  const trimmed = description.trim();
+  if (trimmed.length < 3) throw AppError.badRequest('Tell me a bit about the goal');
+  enforceRateLimit(userId);
+
+  const categories = Object.values(GoalCategory).join(', ');
+  const scoreKeys = SCORE_QUESTIONS.map((q) => q.key).join(', ');
+  const parsed = await chatJson<Record<string, unknown>>(
+    'You configure a savings goal from the user description and return strict JSON. Fields: ' +
+      `name (short string), category (one of: ${categories}), type ("SHORT_TERM" or "LONG_TERM"), ` +
+      'targetAmount (number, your best estimate of cost, 0 if unknown), priority ("LOW"|"MEDIUM"|"HIGH"), ' +
+      `and scores: an object with these 1-100 keys: ${scoreKeys}. ` +
+      'Set scores to reflect how this goal typically rates (e.g. a work laptop: high productivity/income, low luxury).',
+    `Description: "${trimmed}"`,
+    400,
+  );
+
+  const category = oneOf(parsed.category, Object.values(GoalCategory), GoalCategory.Other);
+  const preset = CATEGORY_SCORE_PRESETS[category] ?? CATEGORY_SCORE_PRESETS.OTHER;
+  const rawScores = (parsed.scores ?? {}) as Record<string, unknown>;
+  const scores = Object.fromEntries(
+    SCORE_QUESTIONS.map((q) => [q.key, rawScores[q.key] != null ? clamp100(rawScores[q.key]) : preset[q.key]]),
+  ) as unknown as GoalScoreInputValues;
+
+  return {
+    name: typeof parsed.name === 'string' && parsed.name.trim() ? parsed.name.trim().slice(0, 80) : trimmed.slice(0, 60),
+    category,
+    type: oneOf(parsed.type, Object.values(GoalType), GoalType.ShortTerm),
+    targetAmount: Math.max(0, Math.round(Number(parsed.targetAmount) || 0)),
+    priority: oneOf(parsed.priority, Object.values(GoalPriority), GoalPriority.Medium),
+    scores,
+  };
 }
