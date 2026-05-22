@@ -1,11 +1,15 @@
 import type {
+  ExpenseCategory,
   FinancialPersonality,
   GoalCategory,
   GoalPriority,
   GoalStatus,
   GoalType,
+  NeedOrWant,
+  PaymentMethod,
   Recommendation,
   StreakType,
+  SyncStatus,
 } from './enums.js';
 
 /** Public-safe representation of a user (never includes the password hash). */
@@ -71,6 +75,42 @@ export interface GoalDTO {
   recommendation?: Recommendation;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ExpenseDTO {
+  id: string;
+  amount: number;
+  currency: string;
+  baseCurrencyAmount: number;
+  category: ExpenseCategory;
+  note: string | null;
+  date: string;
+  paymentMethod: PaymentMethod;
+  isRecurring: boolean;
+  needOrWant: NeedOrWant;
+  linkedGoalId: string | null;
+  syncStatus: SyncStatus;
+  clientId: string | null;
+  createdAt: string;
+}
+
+/** Spending rollup for one calendar month (spec §8.4). Amounts in base currency. */
+export interface MonthlySummary {
+  /** YYYY-MM */
+  month: string;
+  baseCurrency: string;
+  total: number;
+  count: number;
+  byCategory: { category: ExpenseCategory; amount: number; pct: number }[];
+  needTotal: number;
+  wantTotal: number;
+  dailyAverage: number;
+  daysElapsed: number;
+  daysInMonth: number;
+  /** Disposable monthly budget (income − mandatory − debt). */
+  monthlyBudget: number;
+  remainingSafeSpend: number;
+  overBudget: boolean;
 }
 
 export interface StreakDTO {

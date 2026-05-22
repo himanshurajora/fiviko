@@ -8,6 +8,7 @@ import { errorHandler, notFoundHandler } from './middleware/error.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { profileRouter } from './modules/profile/profile.routes.js';
 import { goalsRouter } from './modules/goals/goals.routes.js';
+import { expensesRouter } from './modules/expenses/expenses.routes.js';
 
 export function createApp() {
   const app = express();
@@ -32,6 +33,7 @@ export function createApp() {
   app.use('/api/auth', authRouter);
   app.use('/api/profile', profileRouter);
   app.use('/api/goals', goalsRouter);
+  app.use('/api/expenses', expensesRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

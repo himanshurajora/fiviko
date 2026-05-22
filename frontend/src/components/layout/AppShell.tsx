@@ -2,14 +2,21 @@ import { Outlet } from 'react-router-dom';
 import { BottomNavigation } from './BottomNavigation';
 import { SidebarNav } from './SidebarNav';
 import { OfflineIndicator } from './OfflineIndicator';
+import { AddExpenseModal } from '@/components/expenses/AddExpenseModal';
+import { useExpenseModal } from '@/store/expenseModal';
+import { useOfflineSync } from '@/lib/expenses';
 
 /**
  * Responsive app frame.
- * - Phones (< md): single column with a fixed bottom navigation.
- * - Tablet / desktop (>= md): a persistent left sidebar with a fluid content
- *   area that uses the full width (capped to keep line lengths comfortable).
+ * - Phones (< md): single column with a fixed bottom navigation + a floating
+ *   quick-add button.
+ * - Tablet / desktop (>= md): a persistent left sidebar with a fluid content area.
+ * Also hosts the global Add-Expense modal and starts offline-sync.
  */
 export function AppShell() {
+  const openModal = useExpenseModal((s) => s.openModal);
+  useOfflineSync();
+
   return (
     <div className="min-h-dvh bg-gradient-app">
       <div className="flex">
@@ -21,7 +28,19 @@ export function AppShell() {
           </main>
         </div>
       </div>
+
+      {/* Floating quick-add (phones only; desktop uses the in-page buttons). */}
+      <button
+        onClick={() => openModal()}
+        aria-label="Add expense"
+        className="focus-ring fixed bottom-20 right-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-gradient-primary text-2xl text-white shadow-soft md:hidden"
+        style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        ➕
+      </button>
+
       <BottomNavigation />
+      <AddExpenseModal />
     </div>
   );
 }

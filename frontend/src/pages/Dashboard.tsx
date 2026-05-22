@@ -1,4 +1,5 @@
 import { useAuth } from '@/store/auth';
+import { useExpenseModal } from '@/store/expenseModal';
 import { useFinancialSummary } from '@/lib/queries';
 import { FinancialHealthCard } from '@/components/dashboard/FinancialHealthCard';
 import { StatCard } from '@/components/dashboard/StatCard';
@@ -8,6 +9,7 @@ import { formatCurrency, greeting } from '@/lib/format';
 
 export function Dashboard() {
   const user = useAuth((s) => s.user);
+  const openModal = useExpenseModal((s) => s.openModal);
   const { data: summary, isLoading, isError } = useFinancialSummary();
   const currency = summary?.baseCurrency ?? user?.baseCurrency ?? 'USD';
 
@@ -68,7 +70,7 @@ export function Dashboard() {
 
           <div className="grid gap-4 md:grid-cols-2">
             {/* Big, expressive add-expense action (spec §8.4). */}
-            <Button size="lg" fullWidth className="h-16 text-lg">
+            <Button size="lg" fullWidth className="h-16 text-lg" onClick={() => openModal()}>
               ➕ Add Expense
             </Button>
 
