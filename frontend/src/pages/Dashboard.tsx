@@ -1,8 +1,12 @@
+import { StreakType, UserChallengeStatus } from '@fiviko/shared';
 import { useAuth } from '@/store/auth';
 import { useExpenseModal } from '@/store/expenseModal';
 import { useFinancialSummary } from '@/lib/queries';
+import { useChallenges, useStreaks } from '@/lib/gamification';
 import { FinancialHealthCard } from '@/components/dashboard/FinancialHealthCard';
 import { StatCard } from '@/components/dashboard/StatCard';
+import { StreakCard } from '@/components/gamification/StreakCard';
+import { ChallengeCard } from '@/components/gamification/ChallengeCard';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency, greeting } from '@/lib/format';
@@ -11,7 +15,15 @@ export function Dashboard() {
   const user = useAuth((s) => s.user);
   const openModal = useExpenseModal((s) => s.openModal);
   const { data: summary, isLoading, isError } = useFinancialSummary();
+  const { data: streaks } = useStreaks();
+  const { data: challenges } = useChallenges();
   const currency = summary?.baseCurrency ?? user?.baseCurrency ?? 'USD';
+
+  const loggingStreak = streaks?.find((s) => s.type === StreakType.ExpenseLogging);
+  // Surface daily challenges that still need attention first.
+  const dailyChallenges = (challenges ?? [])
+    .filter((c) => c.type === 'DAILY')
+    .sort((a, b) => (a.status === UserChallengeStatus.Completed ? 1 : 0) - (b.status === UserChallengeStatus.Completed ? 1 : 0));
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
@@ -74,16 +86,19 @@ export function Dashboard() {
               ➕ Add Expense
             </Button>
 
-            <Card padded className="flex items-center gap-3 bg-gradient-sun text-ink">
-              <span className="text-2xl" aria-hidden>
-                🔥
-              </span>
-              <div>
-                <p className="font-bold">Start your first streak!</p>
-                <p className="text-sm text-ink/80">Log an expense today to get going.</p>
-              </div>
-            </Card>
+            {loggingStreak && <StreakCard streak={loggingStreak} />}
           </div>
+
+          {dailyChallenges.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-lg font-extrabold text-ink">Today’s challenges 🎯</h2>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {dailyChallenges.map((c) => (
+                  <ChallengeCard key={c.id} challenge={c} />
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
 

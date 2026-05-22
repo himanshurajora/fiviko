@@ -17,6 +17,8 @@ import {
 } from './modules/finances/finances.routes.js';
 import { badgesRouter, userBadgesRouter } from './modules/badges/badges.routes.js';
 import { onboardingRouter } from './modules/onboarding/onboarding.routes.js';
+import { streaksRouter } from './modules/streaks/streaks.routes.js';
+import { challengesRouter } from './modules/challenges/challenges.routes.js';
 
 export function createApp() {
   const app = express();
@@ -49,6 +51,8 @@ export function createApp() {
   app.use('/api/badges', badgesRouter);
   app.use('/api/user-badges', userBadgesRouter);
   app.use('/api/onboarding', onboardingRouter);
+  app.use('/api/streaks', streaksRouter);
+  app.use('/api/challenges', challengesRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

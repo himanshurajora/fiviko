@@ -35,6 +35,10 @@ function invalidateExpenseViews(qc: QueryClient): void {
   void qc.invalidateQueries({ queryKey: ['monthly-summary'] });
   void qc.invalidateQueries({ queryKey: ['profile', 'summary'] });
   void qc.invalidateQueries({ queryKey: ['goals'] });
+  // Logging an expense advances streaks and challenges.
+  void qc.invalidateQueries({ queryKey: ['streaks'] });
+  void qc.invalidateQueries({ queryKey: ['challenges'] });
+  void qc.invalidateQueries({ queryKey: ['badges'] });
 }
 
 export function useExpenses(month?: string) {

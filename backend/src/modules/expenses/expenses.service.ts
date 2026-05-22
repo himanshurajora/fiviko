@@ -12,6 +12,7 @@ import { prisma } from '../../lib/prisma.js';
 import { AppError } from '../../lib/http.js';
 import { convertCurrency } from '../../lib/currency.js';
 import { getFinancialSummary } from '../profile/profile.service.js';
+import { recordExpenseLogged } from '../streaks/streaks.service.js';
 import type { CreateExpenseInput, ListQuery, SyncOfflineInput, UpdateExpenseInput } from './expenses.schema.js';
 
 const dec = (d: Prisma.Decimal | number): number => Number(d);
@@ -72,10 +73,12 @@ export async function createExpense(userId: string, input: CreateExpenseInput): 
       update: {}, // first-write-wins; an existing row is treated as already saved
       create: data,
     });
+    await recordExpenseLogged(userId, expense.date);
     return toExpenseDTO(expense);
   }
 
   const expense = await prisma.expense.create({ data });
+  await recordExpenseLogged(userId, expense.date);
   return toExpenseDTO(expense);
 }
 
@@ -138,6 +141,7 @@ export async function syncOffline(userId: string, input: SyncOfflineInput): Prom
       update: {},
       create: data,
     });
+    await recordExpenseLogged(userId, expense.date);
     synced.push(toExpenseDTO(expense));
   }
   return { synced };

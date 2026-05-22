@@ -16,6 +16,8 @@ import type {
   Recommendation,
   StreakType,
   SyncStatus,
+  ChallengeType,
+  UserChallengeStatus,
 } from './enums.js';
 
 /** Public-safe representation of a user (never includes the password hash). */
@@ -197,6 +199,18 @@ export interface StreakDTO {
   currentCount: number;
   longestCount: number;
   lastUpdatedAt: string | null;
+}
+
+export interface ChallengeDTO {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  type: ChallengeType;
+  target: number;
+  progress: number;
+  status: UserChallengeStatus;
+  rewardBadge: { name: string; icon: string } | null;
 }
 
 export interface BadgeDTO {
