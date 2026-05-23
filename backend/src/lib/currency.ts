@@ -49,3 +49,36 @@ async function getRate(from: string, to: string): Promise<number | null> {
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
+
+/**
+ * Loads all stored currency rates and returns a synchronous converter:
+ *   convert(amount, fromCurrency) → amount in `base`
+ * Use this when summing many rows (net worth) to avoid per-row DB lookups; the
+ * map reflects the latest rates the executor has synced.
+ */
+export async function getRateConverter(base: string): Promise<(amount: number, from: string) => number> {
+  const rows = await prisma.currencyRate.findMany();
+  // Build a tiny graph: rate from any source to any destination.
+  const rate = new Map<string, number>();
+  for (const r of rows) rate.set(`${r.fromCurrency}>${r.toCurrency}`, r.rate);
+
+  const lookup = (from: string, to: string): number | null => {
+    if (from === to) return 1;
+    const direct = rate.get(`${from}>${to}`);
+    if (direct) return direct;
+    const inverse = rate.get(`${to}>${from}`);
+    if (inverse && inverse !== 0) return 1 / inverse;
+    if (from !== 'USD' && to !== 'USD') {
+      const a = lookup(from, 'USD');
+      const b = lookup('USD', to);
+      if (a != null && b != null) return a * b;
+    }
+    return null;
+  };
+
+  return (amount: number, from: string): number => {
+    const r = lookup(from, base);
+    if (r == null) return round2(amount); // safe 1:1 fallback
+    return round2(amount * r);
+  };
+}

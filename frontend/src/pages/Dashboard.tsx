@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { StreakType, UserChallengeStatus } from '@fiviko/shared';
 import { useAuth } from '@/store/auth';
 import { useExpenseModal } from '@/store/expenseModal';
@@ -5,6 +6,7 @@ import { useFinancialSummary } from '@/lib/queries';
 import { useChallenges, useLevel, useStreaks } from '@/lib/gamification';
 import { useGoals } from '@/lib/goals';
 import { useBadges } from '@/lib/badges';
+import { useAssets } from '@/lib/finances';
 import { FinancialHealthCard } from '@/components/dashboard/FinancialHealthCard';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { GoalsOverview } from '@/components/dashboard/GoalsOverview';
@@ -25,7 +27,14 @@ export function Dashboard() {
   const { data: level } = useLevel();
   const { data: goals } = useGoals();
   const { data: badges } = useBadges();
+  const { data: assets } = useAssets();
   const currency = summary?.baseCurrency ?? user?.baseCurrency ?? 'USD';
+
+  // Nudge the user back to the net-worth tracker when balances start to drift.
+  const latestAssetUpdateMs =
+    assets && assets.length > 0 ? Math.max(...assets.map((a) => new Date(a.updatedAt).getTime())) : 0;
+  const daysSinceUpdate = latestAssetUpdateMs > 0 ? Math.floor((Date.now() - latestAssetUpdateMs) / 86_400_000) : null;
+  const showStaleBanner = daysSinceUpdate != null && daysSinceUpdate >= 7;
 
   const loggingStreak = streaks?.find((s) => s.type === StreakType.ExpenseLogging);
   // Surface daily challenges that still need attention first.
@@ -49,6 +58,21 @@ export function Dashboard() {
           </span>
         )}
       </header>
+
+      {showStaleBanner && (
+        <Link to="/app/networth" className="focus-ring">
+          <Card padded animate={false} className="flex items-center justify-between gap-3 bg-warning/10">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl" aria-hidden>💎</span>
+              <div>
+                <p className="font-bold text-ink">Update your balances</p>
+                <p className="text-xs text-ink-soft">It's been {daysSinceUpdate} days — keep your net worth fresh.</p>
+              </div>
+            </div>
+            <span className="text-sm font-semibold text-warning">Update →</span>
+          </Card>
+        </Link>
+      )}
 
       {isLoading && <DashboardSkeleton />}
 

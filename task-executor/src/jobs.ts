@@ -38,12 +38,22 @@ export async function recurringExpensesJob(): Promise<void> {
   }
 }
 
-export async function monthlySnapshotsJob(): Promise<void> {
+/** Monthly: income snapshot (recurring-income-as-history is monthly). */
+export async function monthlyIncomeJob(): Promise<void> {
   try {
     const income = await mainApi.runIncomeSnapshot();
-    const networth = await mainApi.runNetWorthSnapshot();
-    log(`📸 Monthly snapshots — income: ${income.created}, net worth: ${networth.snapshotted}.`);
+    log(`📸 Income snapshots — ${income.created}.`);
   } catch (err) {
-    log(`📸 Monthly snapshots failed: ${(err as Error).message}`);
+    log(`📸 Income snapshot failed: ${(err as Error).message}`);
+  }
+}
+
+/** Daily: net-worth snapshot so the chart reflects FX drift on no-update days. */
+export async function dailyNetWorthSnapshotJob(): Promise<void> {
+  try {
+    const networth = await mainApi.runNetWorthSnapshot();
+    log(`📸 Net-worth snapshots — ${networth.snapshotted}.`);
+  } catch (err) {
+    log(`📸 Net-worth snapshot failed: ${(err as Error).message}`);
   }
 }

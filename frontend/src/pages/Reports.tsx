@@ -16,7 +16,7 @@ export function Reports() {
   const { data: summary } = useFinancialSummary();
   const { data: monthly } = useMonthlySummary();
   const { data: trend } = useExpenseTrend(6);
-  const { data: netWorthHistory } = useNetWorthHistory(6);
+  const { data: netWorthHistory } = useNetWorthHistory('M');
   const { data: goals } = useGoals();
   const cur = summary?.baseCurrency ?? 'USD';
 
@@ -27,7 +27,7 @@ export function Reports() {
   }));
 
   const netWorthData = (netWorthHistory ?? []).map((p) => ({
-    label: new Date(`${p.month}-01`).toLocaleDateString(undefined, { month: 'short' }),
+    label: new Date(p.date).toLocaleDateString(undefined, { month: 'short' }),
     'Net worth': p.netWorth,
   }));
 

@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { LiquidityType, SAFETY_THRESHOLDS, type FinancialSummary } from '@fiviko/shared';
 import { prisma } from '../../lib/prisma.js';
 import { AppError } from '../../lib/http.js';
+import { getRateConverter } from '../../lib/currency.js';
 
 const dec = (d: Prisma.Decimal | number): number => Number(d);
 
@@ -21,31 +22,30 @@ export async function getFinancialSummary(userId: string): Promise<FinancialSumm
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw AppError.notFound('User not found');
 
-  const [assets, liabilities, incomes, mandatory] = await Promise.all([
+  const [assets, liabilities, incomes, mandatory, convert] = await Promise.all([
     prisma.asset.findMany({ where: { userId } }),
     prisma.liability.findMany({ where: { userId } }),
     prisma.income.findMany({ where: { userId } }),
     prisma.mandatoryExpense.findMany({ where: { userId } }),
+    getRateConverter(user.baseCurrency),
   ]);
 
-  const totalAssets = assets.reduce((s, a) => s + dec(a.baseCurrencyAmount), 0);
-  // "Liquid" money available for a purchase or emergency = cash-like assets in
-  // full, plus semi-liquid assets (stocks/gold/funds) at a haircut, since they
-  // can be sold but with friction/volatility. Illiquid assets (property,
-  // vehicles) are excluded.
+  // Convert every row from its native amount + currency using the latest rates,
+  // so the totals always reflect today's FX (not the rate captured at write).
+  const totalAssets = assets.reduce((s, a) => s + convert(dec(a.amount), a.currency), 0);
   const liquidNetWorth = assets.reduce((s, a) => {
-    const amount = dec(a.baseCurrencyAmount);
-    if (a.liquidityType === LiquidityType.Liquid) return s + amount;
-    if (a.liquidityType === LiquidityType.SemiLiquid) return s + amount * SAFETY_THRESHOLDS.semiLiquidHaircut;
-    return s;
+    const baseAmount = convert(dec(a.amount), a.currency);
+    if (a.liquidityType === LiquidityType.Liquid) return s + baseAmount;
+    if (a.liquidityType === LiquidityType.SemiLiquid) return s + baseAmount * SAFETY_THRESHOLDS.semiLiquidHaircut;
+    return s; // illiquid assets (property/vehicles) are excluded from liquid
   }, 0);
 
-  const totalLiabilities = liabilities.reduce((s, l) => s + dec(l.baseCurrencyOutstandingAmount), 0);
-  const monthlyDebtPayments = liabilities.reduce((s, l) => s + dec(l.baseCurrencyMonthlyPayment), 0);
+  const totalLiabilities = liabilities.reduce((s, l) => s + convert(dec(l.outstandingAmount), l.currency), 0);
+  const monthlyDebtPayments = liabilities.reduce((s, l) => s + convert(dec(l.monthlyPayment), l.currency), 0);
 
-  const monthlyIncome = incomes.reduce((s, i) => s + toMonthly(dec(i.baseCurrencyAmount), i.frequency), 0);
+  const monthlyIncome = incomes.reduce((s, i) => s + toMonthly(convert(dec(i.amount), i.currency), i.frequency), 0);
   const monthlyMandatoryExpenses = mandatory.reduce(
-    (s, m) => s + toMonthly(dec(m.baseCurrencyAmount), m.frequency),
+    (s, m) => s + toMonthly(convert(dec(m.amount), m.currency), m.frequency),
     0,
   );
 

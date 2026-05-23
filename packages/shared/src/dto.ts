@@ -141,10 +141,10 @@ export interface IncomeHistoryEntry {
   source: 'auto' | 'manual';
 }
 
-/** One month's net-worth snapshot for the net-worth trend (spec §16). */
+/** One day's net-worth snapshot for the net-worth trend (spec §16). */
 export interface NetWorthHistoryEntry {
-  /** YYYY-MM */
-  month: string;
+  /** YYYY-MM-DD */
+  date: string;
   netWorth: number;
   liquidNetWorth: number;
 }

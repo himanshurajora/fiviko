@@ -61,6 +61,10 @@ export async function createAsset(userId: string, input: AssetInput): Promise<As
   const asset = await prisma.asset.create({
     data: { userId, type: input.type, name: input.name, amount: D(input.amount), currency: input.currency, baseCurrencyAmount: D(base), liquidityType: input.liquidityType },
   });
+  // Seed the balance log with the initial value (used by the per-asset chart).
+  await prisma.assetBalanceEntry.create({
+    data: { userId, assetId: asset.id, amount: D(input.amount), recordedAt: new Date(), source: 'manual' },
+  });
   return toAssetDTO(asset);
 }
 
@@ -75,14 +79,43 @@ export async function updateAsset(userId: string, id: string, input: Partial<Ass
   if (input.type !== undefined) data.type = input.type;
   if (input.name !== undefined) data.name = input.name;
   if (input.liquidityType !== undefined) data.liquidityType = input.liquidityType;
+  let amountChanged = false;
+  let newAmount = dec(existing.amount);
   if (input.amount !== undefined || input.currency !== undefined) {
-    const amount = input.amount ?? dec(existing.amount);
+    newAmount = input.amount ?? dec(existing.amount);
     const currency = input.currency ?? existing.currency;
-    data.amount = D(amount);
+    data.amount = D(newAmount);
     data.currency = currency;
-    data.baseCurrencyAmount = D(await convertCurrency(amount, currency, await baseCurrencyOf(userId)));
+    data.baseCurrencyAmount = D(await convertCurrency(newAmount, currency, await baseCurrencyOf(userId)));
+    amountChanged = newAmount !== dec(existing.amount);
   }
-  return toAssetDTO(await prisma.asset.update({ where: { id }, data }));
+  const updated = await prisma.asset.update({ where: { id }, data });
+  // Every change in *value* gets a log entry for the per-asset history chart.
+  if (amountChanged) {
+    await prisma.assetBalanceEntry.create({
+      data: { userId, assetId: id, amount: D(newAmount), recordedAt: new Date(), source: 'manual' },
+    });
+  }
+  return toAssetDTO(updated);
+}
+
+/**
+ * Lightweight balance update used by the net-worth tracker (just the native
+ * amount, no other fields). Writes a balance entry — the tracker's bread & butter.
+ */
+export async function setAssetBalance(userId: string, assetId: string, amount: number, recordedAt?: Date): Promise<AssetDTO> {
+  const existing = await prisma.asset.findFirst({ where: { id: assetId, userId } });
+  if (!existing) throw AppError.notFound('Asset not found');
+  if (!Number.isFinite(amount) || amount < 0) throw AppError.badRequest('Enter a non-negative amount');
+  const base = await convertCurrency(amount, existing.currency, await baseCurrencyOf(userId));
+  const updated = await prisma.asset.update({
+    where: { id: assetId },
+    data: { amount: D(amount), baseCurrencyAmount: D(base) },
+  });
+  await prisma.assetBalanceEntry.create({
+    data: { userId, assetId, amount: D(amount), recordedAt: recordedAt ?? new Date(), source: 'manual' },
+  });
+  return toAssetDTO(updated);
 }
 
 export async function deleteAsset(userId: string, id: string): Promise<void> {

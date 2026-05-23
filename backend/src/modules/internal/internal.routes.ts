@@ -6,7 +6,7 @@ import { validateBody } from '../../middleware/validate.js';
 import { applyCurrencyRates, shouldSyncCurrency } from '../currency/currency-sync.service.js';
 import { generateRecurringForAllUsers } from '../expenses/recurring.service.js';
 import { snapshotMonthForAllUsers as snapshotIncomeForAll, monthKey } from '../income-history/income-history.service.js';
-import { snapshotMonthForAllUsers as snapshotNetWorthForAll } from '../networth-history/networth-history.service.js';
+import { snapshotAllUsersToday } from '../networth-history/networth-history.service.js';
 
 const ratesSchema = z.object({
   rates: z
@@ -59,6 +59,6 @@ internalRouter.post(
 internalRouter.post(
   '/jobs/networth-snapshot',
   asyncHandler(async (_req, res) => {
-    res.json({ snapshotted: await snapshotNetWorthForAll(monthKey(new Date())) });
+    res.json({ snapshotted: await snapshotAllUsersToday() });
   }),
 );

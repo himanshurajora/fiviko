@@ -51,10 +51,45 @@ export function useIncomeHistory(months = 6) {
   });
 }
 
-export function useNetWorthHistory(months = 6) {
+export type NetWorthGranularity = 'D' | 'W' | 'M' | 'Y' | 'ALL';
+
+export function useNetWorthHistory(granularity: NetWorthGranularity = 'M') {
   return useQuery({
-    queryKey: ['networth-history', months],
-    queryFn: async (): Promise<NetWorthHistoryEntry[]> => (await api.get('/networth-history', { params: { months } })).data,
+    queryKey: ['networth-history', granularity],
+    queryFn: async (): Promise<NetWorthHistoryEntry[]> =>
+      (await api.get('/networth-history', { params: { granularity } })).data,
+  });
+}
+
+/** Per-asset balance history in the asset's native currency (for mini charts). */
+export function useAssetHistory(assetId: string, days = 180) {
+  return useQuery({
+    queryKey: ['asset-history', assetId, days],
+    queryFn: async (): Promise<{ date: string; amount: number }[]> =>
+      (await api.get(`/networth-history/assets/${assetId}`, { params: { days } })).data,
+  });
+}
+
+/** Update one asset's native balance — the tracker's primary mutation. */
+export function useSetAssetBalance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, amount }: { id: string; amount: number }): Promise<AssetDTO> =>
+      (await api.put(`/assets/${id}/balance`, { amount })).data,
+    onSuccess: () => {
+      invalidateProfile(qc);
+      void qc.invalidateQueries({ queryKey: ['networth-history'] });
+      void qc.invalidateQueries({ queryKey: ['asset-history'] });
+    },
+  });
+}
+
+/** Manually snapshot today's net worth (used by the tracker's "Save" button). */
+export function useSnapshotNetWorth() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => (await api.post('/networth-history/snapshot')).data,
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['networth-history'] }),
   });
 }
 

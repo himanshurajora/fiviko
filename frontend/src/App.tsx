@@ -15,6 +15,7 @@ import { Badges } from '@/pages/Badges';
 import { Reports } from '@/pages/Reports';
 import { About } from '@/pages/About';
 import { Profile } from '@/pages/Profile';
+import { NetWorthTracker } from '@/pages/NetWorthTracker';
 
 /** Forces new users through onboarding before they can reach the main app. */
 function RequireOnboarding() {
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/app" element={<AppShell />}>
             <Route index element={<Dashboard />} />
             <Route path="expenses" element={<Expenses />} />
+            <Route path="networth" element={<NetWorthTracker />} />
             <Route path="goals" element={<Goals />} />
             <Route path="goals/new" element={<AddGoal />} />
             <Route path="goals/:id" element={<GoalDetail />} />

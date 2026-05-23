@@ -223,14 +223,37 @@ model Asset {
   name               String
   amount             Decimal       @db.Decimal(18, 2)
   currency           String
+  /// Cached conversion to base currency at last update. The live view always
+  /// reconverts from `amount` + `currency` via the latest CurrencyRate; this
+  /// field is only kept for legacy reads and snapshots.
   baseCurrencyAmount Decimal       @db.Decimal(18, 2)
   liquidityType      LiquidityType @default(LIQUID)
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balances  AssetBalanceEntry[]
 
   @@index([userId])
+}
+
+/// Immutable per-day balance log for an asset (native amount). Powers the
+/// net-worth tracker, per-asset history charts, and reconstructable history.
+model AssetBalanceEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  assetId    String
+  /// Asset's native amount on `recordedAt` (currency comes from the parent asset).
+  amount     Decimal  @db.Decimal(18, 2)
+  recordedAt DateTime
+  /// "manual" (user-entered) or "auto" (system snapshot — e.g., migration).
+  source     String   @default("manual")
+  createdAt  DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordedAt])
+  @@index([assetId, recordedAt])
 }
 
 model Liability {
@@ -491,12 +514,13 @@ model SyncState {
   meta      String?
 }
 
-/// Monthly net-worth snapshot for the net-worth trend chart (spec §16).
+/// Daily net-worth snapshot for the net-worth trend chart (spec §16). Written
+/// by the daily executor cron and on every manual balance update.
 model NetWorthHistory {
   id               String   @id @default(cuid())
   userId           String
-  /// YYYY-MM
-  month            String
+  /// YYYY-MM-DD
+  date             String
   netWorth         Decimal  @db.Decimal(18, 2)
   liquidNetWorth   Decimal  @db.Decimal(18, 2)
   totalAssets      Decimal  @db.Decimal(18, 2)
@@ -506,6 +530,6 @@ model NetWorthHistory {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, month])
+  @@unique([userId, date])
   @@index([userId])
 }
