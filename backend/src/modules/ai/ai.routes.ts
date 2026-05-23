@@ -8,7 +8,6 @@ import {
   coachAsk,
   configureGoalFromText,
   explainDecision,
-  monthlyReport,
   parseExpenseText,
   savingsTips,
 } from './ai.service.js';
@@ -27,11 +26,6 @@ aiRouter.use(requireAuth);
 
 /** Lets the frontend hide AI surfaces when the server has no key. */
 aiRouter.get('/status', asyncHandler(async (_req, res) => res.json({ enabled: isAiEnabled() })));
-
-aiRouter.get(
-  '/monthly-report',
-  asyncHandler(async (req, res) => res.json(await monthlyReport(uid(req), req.query.regenerate === 'true'))),
-);
 
 aiRouter.get(
   '/tips',

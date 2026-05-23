@@ -57,26 +57,6 @@ function monthKey(): string {
 
 // --- Features -------------------------------------------------------------
 
-/** A personalized summary of the month. Cached per user+month (regenerate=force). */
-export async function monthlyReport(userId: string, regenerate = false): Promise<AiResult> {
-  const key = `report:${userId}:${monthKey()}`;
-  if (!regenerate) {
-    const cached = getCached(key);
-    if (cached) return { text: cached, cached: true };
-  }
-  enforceRateLimit(userId);
-  const context = await buildFinancialContext(userId);
-  const text = await chat(
-    COACH_SYSTEM,
-    `Write this month's money report for the user. Cover: how spending went vs budget, ` +
-      `progress on goals, one or two wins to celebrate, and 2-3 specific, actionable tips. ` +
-      `Use a friendly tone with short sections.\n\nDATA:\n${context}`,
-    550,
-  );
-  setCached(key, text);
-  return { text, cached: false };
-}
-
 /** Tailored savings tips. Cached per user+month. */
 export async function savingsTips(userId: string, regenerate = false): Promise<AiResult> {
   const key = `tips:${userId}:${monthKey()}`;

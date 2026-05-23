@@ -15,15 +15,6 @@ export function useAiStatus() {
   });
 }
 
-export function useMonthlyReport(enabled: boolean) {
-  return useQuery({
-    queryKey: ['ai', 'monthly-report'],
-    enabled,
-    staleTime: 1000 * 60 * 60,
-    queryFn: async (): Promise<AiResult> => (await api.get('/ai/monthly-report')).data,
-  });
-}
-
 export function useSavingsTips(enabled: boolean) {
   return useQuery({
     queryKey: ['ai', 'tips'],
