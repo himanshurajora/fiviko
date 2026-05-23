@@ -5,10 +5,11 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { MANDATORY_OPTIONS } from '@/lib/financeMeta';
 import { SUPPORTED_CURRENCIES } from '@/lib/currencies';
-import { useMandatoryMutations, useUpdateMandatory } from '@/lib/finances';
+import { useMandatoryMutations, useRestoreMandatory, useUpdateMandatory } from '@/lib/finances';
 import { notify } from '@/store/toast';
 import { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
+import { undoableDelete } from '@/lib/undoable';
 
 interface Props {
   bills: MandatoryExpenseDTO[];
@@ -22,14 +23,9 @@ const labelFor = (t: string) => MANDATORY_OPTIONS.find((o) => o.value === t)?.la
 export function BillsSection({ bills, baseCurrency }: Props) {
   const { create, remove } = useMandatoryMutations();
   const update = useUpdateMandatory();
+  const restore = useRestoreMandatory();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-
-  async function onDelete(id: string, label: string) {
-    if (!window.confirm(`Remove "${label}"?`)) return;
-    await remove.mutateAsync(id);
-    notify.custom('Bill removed', { tone: 'info', icon: '🗑️', sound: 'tap' });
-  }
 
   return (
     <Card padded>
@@ -86,7 +82,14 @@ export function BillsSection({ bills, baseCurrency }: Props) {
                 <button onClick={() => setEditingId(editingId === b.id ? null : b.id)} className="focus-ring rounded-full px-2 py-0.5 font-medium text-ink-soft hover:text-primary">
                   ✏️
                 </button>
-                <button onClick={() => onDelete(b.id, labelFor(b.category))} className="focus-ring rounded-full px-2 py-0.5 font-medium text-ink-soft hover:text-danger">
+                <button
+                  onClick={() => undoableDelete({
+                    thing: 'Bill',
+                    doDelete: () => remove.mutateAsync(b.id),
+                    doRestore: () => restore.mutateAsync(b.id),
+                  })}
+                  className="focus-ring rounded-full px-2 py-0.5 font-medium text-ink-soft hover:text-danger"
+                >
                   🗑️
                 </button>
               </div>

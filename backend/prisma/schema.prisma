@@ -198,6 +198,7 @@ model User {
   incomeHistory     IncomeHistory[]
   netWorthHistory   NetWorthHistory[]
   categoryBudgets   CategoryBudget[]
+  cashFlows         CashFlow[]
 }
 
 /// Optional monthly spending cap per expense category (spec §8.4 budget vs actual).
@@ -228,6 +229,8 @@ model Asset {
   /// field is only kept for legacy reads and snapshots.
   baseCurrencyAmount Decimal       @db.Decimal(18, 2)
   liquidityType      LiquidityType @default(LIQUID)
+  /// Soft-delete tombstone. List endpoints filter out non-null. Restored by undo.
+  deletedAt          DateTime?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
@@ -246,14 +249,20 @@ model AssetBalanceEntry {
   /// Asset's native amount on `recordedAt` (currency comes from the parent asset).
   amount     Decimal  @db.Decimal(18, 2)
   recordedAt DateTime
-  /// "manual" (user-entered) or "auto" (system snapshot — e.g., migration).
+  /// Stable kind tag — "manual", "deposit", "transfer-in", "transfer-out",
+  /// "salary-auto:YYYY-MM", "loan-payment", "receipt:YYYY-MM" etc.
   source     String   @default("manual")
+  /// Free-text human note ("Mom's birthday gift", "Rent transferred to landlord").
+  note       String?
+  /// Pairs two entries from a transfer so the UI can show them as one row.
+  transferId String?
   createdAt  DateTime @default(now())
 
   asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   @@index([userId, recordedAt])
   @@index([assetId, recordedAt])
+  @@index([transferId])
 }
 
 model Liability {
@@ -262,11 +271,18 @@ model Liability {
   type                        LiabilityType
   name                        String
   outstandingAmount           Decimal       @db.Decimal(18, 2)
+  /// What you owed when this debt was first added — the denominator for
+  /// "% paid down" progress and the Debt Crusher badge. Never decreases as
+  /// you pay it down; only changes if the user explicitly edits it. Nullable
+  /// only because pre-existing rows had no value at migration time; treat null
+  /// as "same as outstandingAmount" in the DTO layer.
+  originalOutstandingAmount   Decimal?      @db.Decimal(18, 2)
   monthlyPayment              Decimal       @db.Decimal(18, 2)
   currency                    String
   baseCurrencyOutstandingAmount Decimal     @db.Decimal(18, 2)
   baseCurrencyMonthlyPayment  Decimal       @db.Decimal(18, 2)
   interestRate                Float?
+  deletedAt                   DateTime?
   createdAt                   DateTime      @default(now())
   updatedAt                   DateTime      @updatedAt
 
@@ -279,21 +295,56 @@ model Income {
   id                 String     @id @default(cuid())
   userId             String
   type               IncomeType
+  /// Optional human label so a user with two FREELANCE sources can tell them
+  /// apart ("Acme contract", "Flink driving Berlin"). Falls back to the type
+  /// label in the UI when blank.
+  name               String?
+  /// Modelled/expected per-period amount. Variable-income users override per
+  /// month via IncomeReceipt, and the auto-deposit cron prefers that actual.
   amount             Decimal    @db.Decimal(18, 2)
   currency           String
   baseCurrencyAmount Decimal    @db.Decimal(18, 2)
   frequency          Frequency  @default(MONTHLY)
-  /// When set, the monthly executor credits this asset by `amount` each month
-  /// (e.g. salary auto-deposited into your main bank account).
+  /// When set, the monthly executor credits this asset by `amount` (or the
+  /// actual receipt amount if logged) each month. Cross-currency is OK — the
+  /// cron converts at the moment of credit using the latest FX rate.
   depositToAssetId   String?
   /// YYYY-MM of the month the credit was last applied — guards against doubles.
   lastDepositedMonth String?
+  deletedAt          DateTime?
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  receipts IncomeReceipt[]
 
   @@index([userId])
+}
+
+/// What actually arrived for a given income in a given period (YYYY-MM).
+/// Gig drivers, freelancers and anyone with variable pay log this; the cron
+/// then credits the auto-deposit account with the actual figure instead of
+/// the modelled one. Source of truth for "expected vs actual" charts.
+model IncomeReceipt {
+  id                 String   @id @default(cuid())
+  userId             String
+  incomeId           String
+  /// YYYY-MM (period the money is *for*, not when it was logged).
+  periodKey          String
+  /// What the user logged, in the income's native currency.
+  amount             Decimal  @db.Decimal(18, 2)
+  currency           String
+  baseCurrencyAmount Decimal  @db.Decimal(18, 2)
+  /// "manual" (user-logged actual) or "auto" (cron stamped the modelled amount).
+  source             String   @default("manual")
+  receivedAt         DateTime @default(now())
+  note               String?
+  createdAt          DateTime @default(now())
+
+  income Income @relation(fields: [incomeId], references: [id], onDelete: Cascade)
+
+  @@unique([incomeId, periodKey])
+  @@index([userId, periodKey])
 }
 
 model MandatoryExpense {
@@ -304,6 +355,7 @@ model MandatoryExpense {
   currency           String
   baseCurrencyAmount Decimal                  @db.Decimal(18, 2)
   frequency          Frequency                @default(MONTHLY)
+  deletedAt          DateTime?
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
 
@@ -347,6 +399,7 @@ model Expense {
   syncStatus         SyncStatus      @default(SYNCED)
   /// Stable client-generated id used to de-duplicate offline-synced entries.
   clientId           String?
+  deletedAt          DateTime?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
@@ -517,6 +570,33 @@ model SyncState {
   key       String   @unique
   lastRunAt DateTime
   meta      String?
+}
+
+/// Unified signed log of every money movement in base currency. Each row is a
+/// single in/out event at the moment it happened — auto-deposits, windfalls,
+/// transfers, loan pay-downs, expenses logged, income receipts. Decouples
+/// "this month's flow" reporting from the balance-entry deltas (which mix
+/// absolute "set" updates with real movements). Append-only by convention.
+model CashFlow {
+  id          String   @id @default(cuid())
+  userId      String
+  /// Always positive — `kind` carries the sign convention.
+  baseAmount  Decimal  @db.Decimal(18, 2)
+  /// "INCOME_CREDIT" "WINDFALL_IN" "RECEIPT_IN" "TRANSFER_IN" "TRANSFER_OUT"
+  /// "EXPENSE_OUT" "PAY_DOWN_OUT". Inflows end in _IN/_CREDIT, outflows _OUT.
+  kind        String
+  occurredAt  DateTime
+  /// Free-text note for traceability and the UI.
+  note        String?
+  /// Originating entity for click-through (e.g. ref="income:abc" / "expense:xyz").
+  refKind     String?
+  refId       String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
+  @@index([userId, kind])
 }
 
 /// Daily net-worth snapshot for the net-worth trend chart (spec §16). Written

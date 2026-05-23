@@ -6,7 +6,9 @@ import { createExpenseSchema, syncOfflineSchema, updateExpenseSchema } from './e
 import {
   getExpenses,
   getMonthlySummary,
+  getQuickAdd,
   getTrend,
+  getTrendByGranularity,
   postExpense,
   postGenerateRecurring,
   postSyncOffline,
@@ -22,6 +24,8 @@ expensesRouter.post('/', validateBody(createExpenseSchema), asyncHandler(postExp
 expensesRouter.get('/', asyncHandler(getExpenses));
 expensesRouter.get('/monthly-summary', asyncHandler(getMonthlySummary));
 expensesRouter.get('/trend', asyncHandler(getTrend));
+expensesRouter.get('/trend-by-grain', asyncHandler(getTrendByGranularity));
+expensesRouter.get('/quick-add', asyncHandler(getQuickAdd));
 expensesRouter.post('/sync-offline', validateBody(syncOfflineSchema), asyncHandler(postSyncOffline));
 expensesRouter.post('/generate-recurring', asyncHandler(postGenerateRecurring));
 expensesRouter.put('/:id', validateBody(updateExpenseSchema), asyncHandler(putExpense));

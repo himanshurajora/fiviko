@@ -23,10 +23,10 @@ export async function getFinancialSummary(userId: string): Promise<FinancialSumm
   if (!user) throw AppError.notFound('User not found');
 
   const [assets, liabilities, incomes, mandatory, convert] = await Promise.all([
-    prisma.asset.findMany({ where: { userId } }),
-    prisma.liability.findMany({ where: { userId } }),
-    prisma.income.findMany({ where: { userId } }),
-    prisma.mandatoryExpense.findMany({ where: { userId } }),
+    prisma.asset.findMany({ where: { userId, deletedAt: null } }),
+    prisma.liability.findMany({ where: { userId, deletedAt: null } }),
+    prisma.income.findMany({ where: { userId, deletedAt: null } }),
+    prisma.mandatoryExpense.findMany({ where: { userId, deletedAt: null } }),
     getRateConverter(user.baseCurrency),
   ]);
 
@@ -56,11 +56,32 @@ export async function getFinancialSummary(userId: string): Promise<FinancialSumm
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
-  const spendAgg = await prisma.expense.aggregate({
-    where: { userId, date: { gte: monthStart } },
-    _sum: { baseCurrencyAmount: true },
-  });
+  const [spendAgg, cashFlowRows] = await Promise.all([
+    prisma.expense.aggregate({
+      where: { userId, date: { gte: monthStart }, deletedAt: null },
+      _sum: { baseCurrencyAmount: true },
+    }),
+    // "This month so far" strip — every signed money movement we logged.
+    // Transfers are zero-sum (one IN + one OUT) so they fall out of net change
+    // but still show up if you split inflow vs outflow.
+    prisma.cashFlow.findMany({
+      where: { userId, occurredAt: { gte: monthStart } },
+      select: { baseAmount: true, kind: true },
+    }),
+  ]);
   const currentMonthSpending = dec(spendAgg._sum.baseCurrencyAmount ?? new Prisma.Decimal(0));
+
+  let currentMonthInflow = 0;
+  let currentMonthOutflow = 0;
+  for (const row of cashFlowRows) {
+    const amt = dec(row.baseAmount);
+    if (row.kind.endsWith('_IN') || row.kind === 'INCOME_CREDIT') currentMonthInflow += amt;
+    else if (row.kind.endsWith('_OUT')) currentMonthOutflow += amt;
+  }
+  // Expenses live in the Expense table, not CashFlow (we'd have double-logged).
+  // Add them to outflow here so the strip reflects "what you spent" too.
+  currentMonthOutflow += currentMonthSpending;
+  const currentMonthNetChange = currentMonthInflow - currentMonthOutflow;
 
   // Essential monthly cost drives the emergency-fund target. Fall back to a
   // fraction of income when no mandatory expenses are logged, so the target
@@ -93,6 +114,9 @@ export async function getFinancialSummary(userId: string): Promise<FinancialSumm
     debtToIncomeRatio: round2(debtToIncomeRatio),
     currentMonthSpending: round2(currentMonthSpending),
     safeRemainingSpend: round2(safeRemainingSpend),
+    currentMonthInflow: round2(currentMonthInflow),
+    currentMonthOutflow: round2(currentMonthOutflow),
+    currentMonthNetChange: round2(currentMonthNetChange),
   };
 }
 

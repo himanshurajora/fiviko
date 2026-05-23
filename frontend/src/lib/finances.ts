@@ -5,12 +5,14 @@ import type {
   ExpenseTrendPoint,
   IncomeDTO,
   IncomeHistoryEntry,
+  IncomeReceiptDTO,
   IncomeType,
   LiabilityDTO,
   LiabilityType,
   MandatoryExpenseCategory,
   MandatoryExpenseDTO,
   NetWorthHistoryEntry,
+  TransferResult,
 } from '@fiviko/shared';
 import { api } from './api';
 
@@ -108,7 +110,7 @@ export function useSetMonthlyIncome() {
 
 export interface AssetPayload { type: AssetType; name: string; amount: number; currency: string; liquidityType: string }
 export interface LiabilityPayload { type: LiabilityType; name: string; outstandingAmount: number; monthlyPayment: number; currency: string }
-export interface IncomePayload { type: IncomeType; amount: number; currency: string; frequency: string }
+export interface IncomePayload { type: IncomeType; name?: string | null; amount: number; currency: string; frequency: string }
 export interface MandatoryPayload { category: MandatoryExpenseCategory; amount: number; currency: string; frequency: string }
 
 /** Generic create+delete mutations for one finance resource path. */
@@ -135,7 +137,10 @@ export const useMandatoryMutations = () => useResourceMutations<MandatoryPayload
 export function useUpdateIncome() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...patch }: { id: string; amount?: number; type?: string; depositToAssetId?: string | null }): Promise<IncomeDTO> =>
+    mutationFn: async ({
+      id,
+      ...patch
+    }: { id: string; amount?: number; type?: string; name?: string | null; depositToAssetId?: string | null }): Promise<IncomeDTO> =>
       (await api.put(`/incomes/${id}`, patch)).data,
     onSuccess: () => invalidateProfile(qc),
   });
@@ -186,6 +191,78 @@ export function usePayDownLiability() {
       invalidateProfile(qc);
       void qc.invalidateQueries({ queryKey: ['networth-history'] });
       void qc.invalidateQueries({ queryKey: ['asset-history'] });
+    },
+  });
+}
+
+// --- Transfers + restore + receipts ---------------------------------------
+
+export function useTransferBetweenAssets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      fromAssetId,
+      toAssetId,
+      amount,
+      note,
+    }: { fromAssetId: string; toAssetId: string; amount: number; note?: string | null }): Promise<TransferResult> =>
+      (await api.post('/assets/transfer', { fromAssetId, toAssetId, amount, note: note ?? null })).data,
+    onSuccess: () => {
+      invalidateProfile(qc);
+      void qc.invalidateQueries({ queryKey: ['networth-history'] });
+      void qc.invalidateQueries({ queryKey: ['asset-history'] });
+    },
+  });
+}
+
+/** Resurrect a soft-deleted resource (used by the Undo toast action). */
+function restoreFactory<T>(path: 'assets' | 'liabilities' | 'incomes' | 'mandatory-expenses') {
+  return function useRestore() {
+    const qc = useQueryClient();
+    return useMutation({
+      mutationFn: async (id: string): Promise<T> => (await api.post(`/${path}/${id}/restore`)).data,
+      onSuccess: () => invalidateProfile(qc),
+    });
+  };
+}
+export const useRestoreAsset = restoreFactory<AssetDTO>('assets');
+export const useRestoreLiability = restoreFactory<LiabilityDTO>('liabilities');
+export const useRestoreIncome = restoreFactory<IncomeDTO>('incomes');
+export const useRestoreMandatory = restoreFactory<MandatoryExpenseDTO>('mandatory-expenses');
+
+export function useIncomeReceipts(incomeId: string | null) {
+  return useQuery({
+    enabled: !!incomeId,
+    queryKey: ['income-receipts', incomeId],
+    queryFn: async (): Promise<IncomeReceiptDTO[]> =>
+      (await api.get(`/incomes/${incomeId}/receipts`)).data,
+  });
+}
+
+export function useLogIncomeReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { incomeId: string; periodKey: string; amount: number; note?: string | null }): Promise<IncomeReceiptDTO> =>
+      (await api.post(`/incomes/${input.incomeId}/receipts`, {
+        periodKey: input.periodKey,
+        amount: input.amount,
+        note: input.note ?? null,
+      })).data,
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ['income-receipts', vars.incomeId] });
+      void qc.invalidateQueries({ queryKey: ['incomes'] });
+    },
+  });
+}
+
+export function useDeleteIncomeReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { incomeId: string; periodKey: string }) =>
+      (await api.delete(`/incomes/${input.incomeId}/receipts/${input.periodKey}`)).data,
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ['income-receipts', vars.incomeId] });
+      void qc.invalidateQueries({ queryKey: ['incomes'] });
     },
   });
 }

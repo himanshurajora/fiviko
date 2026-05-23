@@ -7,7 +7,10 @@ import {
   type CategoryBudgetStatus,
   type ExpenseCategory,
   type ExpenseDTO,
+  type ExpenseGranularity,
+  type ExpenseTrendResult,
   type MonthlySummary,
+  type QuickAddSuggestion,
 } from '@fiviko/shared';
 import { api } from './api';
 import {
@@ -63,6 +66,25 @@ export function useBudgets() {
   return useQuery({
     queryKey: ['budgets'],
     queryFn: async (): Promise<CategoryBudgetStatus[]> => (await api.get('/budgets')).data,
+  });
+}
+
+/** D/W/M/Y trend with current-vs-prior delta + top category mover. */
+export function useExpenseTrendByGrain(granularity: ExpenseGranularity) {
+  return useQuery({
+    queryKey: ['expense-trend-grain', granularity],
+    queryFn: async (): Promise<ExpenseTrendResult> =>
+      (await api.get('/expenses/trend-by-grain', { params: { granularity } })).data,
+  });
+}
+
+/** Top-5 recurring spend patterns from the last 30 days. */
+export function useQuickAddSuggestions() {
+  return useQuery({
+    queryKey: ['quick-add'],
+    queryFn: async (): Promise<QuickAddSuggestion[]> => (await api.get('/expenses/quick-add')).data,
+    // Don't refetch often — the chips are stable for the day.
+    staleTime: 5 * 60 * 1000,
   });
 }
 

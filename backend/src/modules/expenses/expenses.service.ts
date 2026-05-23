@@ -3,10 +3,14 @@ import type { Expense } from '@prisma/client';
 import {
   ExpenseCategory,
   type ExpenseDTO,
+  type ExpenseGranularity,
+  type ExpenseTrendBin,
   type ExpenseTrendPoint,
+  type ExpenseTrendResult,
   type MonthlySummary,
   type NeedOrWant,
   type PaymentMethod,
+  type QuickAddSuggestion,
   type SyncStatus,
 } from '@fiviko/shared';
 import { prisma } from '../../lib/prisma.js';
@@ -80,6 +84,8 @@ export async function createExpense(userId: string, input: CreateExpenseInput): 
   }
 
   const expense = await prisma.expense.create({ data });
+  // Note: we *don't* mirror expenses into CashFlow — the FinancialSummary adds
+  // expense totals separately so we'd double-count if we did.
   await recordExpenseLogged(userId, expense.date);
   return toExpenseDTO(expense);
 }
@@ -236,7 +242,193 @@ export async function expenseTrend(userId: string, months = 6): Promise<ExpenseT
   }));
 }
 
+/**
+ * Bin expenses for the D/W/M/Y graph + compute current-vs-prior delta and the
+ * single category that contributed most to the change. All in base currency.
+ */
+export async function expenseTrendByGranularity(
+  userId: string,
+  granularity: ExpenseGranularity,
+  bins = defaultBinsFor(granularity),
+): Promise<ExpenseTrendResult> {
+  const span = Math.min(60, Math.max(2, bins));
+  const now = new Date();
+  const start = startOfBin(granularity, now, span - 1);
+
+  const rows = await prisma.expense.findMany({
+    where: { userId, date: { gte: start }, deletedAt: null },
+    select: { date: true, baseCurrencyAmount: true, category: true },
+  });
+
+  // Generate the bucket keys we want to display, oldest first.
+  const keys: string[] = [];
+  for (let i = span - 1; i >= 0; i--) keys.push(binKey(granularity, addBins(granularity, now, -i)));
+
+  const totals = new Map<string, number>(keys.map((k) => [k, 0]));
+  const byBinByCat = new Map<string, Map<string, number>>(keys.map((k) => [k, new Map()]));
+
+  for (const r of rows) {
+    const k = binKey(granularity, r.date);
+    if (!totals.has(k)) continue;
+    const amt = dec(r.baseCurrencyAmount);
+    totals.set(k, (totals.get(k) ?? 0) + amt);
+    const catMap = byBinByCat.get(k)!;
+    catMap.set(r.category, (catMap.get(r.category) ?? 0) + amt);
+  }
+
+  const binsOut: ExpenseTrendBin[] = keys.map((k) => ({
+    key: k,
+    label: binLabel(granularity, k),
+    total: round2(totals.get(k) ?? 0),
+  }));
+
+  // Current = last fully-counted bin (we treat the latest as "current period
+  // so far" — the user still wants the side-by-side comparison even mid-period).
+  const lastIdx = binsOut.length - 1;
+  const currentTotal = binsOut[lastIdx]?.total ?? 0;
+  const priorTotal = binsOut[lastIdx - 1]?.total ?? 0;
+  const deltaAbsolute = round2(currentTotal - priorTotal);
+  const deltaPct = priorTotal > 0 ? round2(deltaAbsolute / priorTotal) : null;
+
+  // Top mover: largest absolute swing in any single category across the two
+  // most-recent bins (positive or negative).
+  const curCats = byBinByCat.get(keys[lastIdx]) ?? new Map();
+  const priCats = byBinByCat.get(keys[lastIdx - 1]) ?? new Map();
+  let topMover: { category: ExpenseCategory; delta: number } | null = null;
+  for (const cat of new Set<string>([...curCats.keys(), ...priCats.keys()])) {
+    const swing = (curCats.get(cat) ?? 0) - (priCats.get(cat) ?? 0);
+    if (!topMover || Math.abs(swing) > Math.abs(topMover.delta)) {
+      topMover = { category: cat as ExpenseCategory, delta: round2(swing) };
+    }
+  }
+  // Hide a zero "top mover" — there's no story to tell.
+  if (topMover && Math.abs(topMover.delta) < 0.01) topMover = null;
+
+  return { granularity, bins: binsOut, currentTotal, priorTotal, deltaAbsolute, deltaPct, topMover };
+}
+
+/**
+ * Top-5 recurring spend patterns from the last 30 days, used as one-tap chips
+ * on the Expenses page. Groups by (category, rounded amount, normalised note,
+ * payment method) and ranks by count then recency.
+ */
+export async function quickAddSuggestions(userId: string, take = 5): Promise<QuickAddSuggestion[]> {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const rows = await prisma.expense.findMany({
+    where: { userId, date: { gte: thirtyDaysAgo }, deletedAt: null },
+    select: {
+      amount: true, currency: true, category: true, note: true,
+      paymentMethod: true, needOrWant: true, date: true,
+    },
+    orderBy: { date: 'desc' },
+  });
+
+  const buckets = new Map<string, { row: typeof rows[number]; count: number }>();
+  for (const r of rows) {
+    // Bucket on whole-number native amount (most groceries vary by ₹5) — rough
+    // enough to coalesce, tight enough to distinguish ₹40 metro from ₹150 coffee.
+    const amtKey = Math.round(dec(r.amount)).toString();
+    const noteKey = (r.note ?? '').trim().toLowerCase();
+    const key = `${r.category}|${amtKey}|${r.currency}|${noteKey}|${r.paymentMethod}`;
+    const existing = buckets.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      buckets.set(key, { row: r, count: 1 });
+    }
+  }
+
+  return [...buckets.values()]
+    .filter((b) => b.count >= 2) // single-use entries aren't "patterns"
+    .sort((a, b) => b.count - a.count || +b.row.date - +a.row.date)
+    .slice(0, take)
+    .map(({ row, count }) => ({
+      category: row.category as ExpenseCategory,
+      amount: dec(row.amount),
+      currency: row.currency,
+      note: row.note,
+      paymentMethod: row.paymentMethod as PaymentMethod,
+      needOrWant: row.needOrWant as NeedOrWant,
+      occurrences: count,
+    }));
+}
+
 // --- helpers --------------------------------------------------------------
+
+function defaultBinsFor(g: ExpenseGranularity): number {
+  if (g === 'D') return 30;
+  if (g === 'W') return 12;
+  if (g === 'M') return 12;
+  return 6; // years
+}
+
+function startOfBin(g: ExpenseGranularity, ref: Date, backOffset: number): Date {
+  if (g === 'D') {
+    const d = new Date(ref);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - backOffset);
+    return d;
+  }
+  if (g === 'W') {
+    const d = new Date(ref);
+    d.setHours(0, 0, 0, 0);
+    const dow = d.getDay() === 0 ? 6 : d.getDay() - 1; // ISO week starts Monday
+    d.setDate(d.getDate() - dow - backOffset * 7);
+    return d;
+  }
+  if (g === 'M') {
+    return new Date(ref.getFullYear(), ref.getMonth() - backOffset, 1);
+  }
+  return new Date(ref.getFullYear() - backOffset, 0, 1);
+}
+
+function addBins(g: ExpenseGranularity, ref: Date, delta: number): Date {
+  if (g === 'D') {
+    const d = new Date(ref);
+    d.setDate(d.getDate() + delta);
+    return d;
+  }
+  if (g === 'W') {
+    const d = new Date(ref);
+    d.setDate(d.getDate() + delta * 7);
+    return d;
+  }
+  if (g === 'M') {
+    return new Date(ref.getFullYear(), ref.getMonth() + delta, 1);
+  }
+  return new Date(ref.getFullYear() + delta, 0, 1);
+}
+
+function binKey(g: ExpenseGranularity, d: Date): string {
+  if (g === 'D') return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (g === 'W') {
+    // ISO week (year + week number). Sufficient as a unique bucket key.
+    const ref = new Date(d);
+    ref.setHours(0, 0, 0, 0);
+    ref.setDate(ref.getDate() + 4 - (ref.getDay() || 7));
+    const yearStart = new Date(ref.getFullYear(), 0, 1);
+    const weekNum = Math.ceil(((+ref - +yearStart) / 86_400_000 + 1) / 7);
+    return `${ref.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+  }
+  if (g === 'M') return toMonthKey(d);
+  return String(d.getFullYear());
+}
+
+function binLabel(g: ExpenseGranularity, key: string): string {
+  if (g === 'D') {
+    const [, m, d] = key.split('-');
+    return `${d}/${m}`;
+  }
+  if (g === 'W') {
+    const [, w] = key.split('-W');
+    return `W${w}`;
+  }
+  if (g === 'M') {
+    const [, m] = key.split('-');
+    return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m) - 1] ?? key;
+  }
+  return key;
+}
 
 function monthRange(monthKey: string): { start: Date; end: Date } {
   const [y, m] = monthKey.split('-').map(Number);

@@ -4,11 +4,14 @@ import {
   createExpense,
   deleteExpense,
   expenseTrend,
+  expenseTrendByGranularity,
   listExpenses,
   monthlySummary,
+  quickAddSuggestions,
   syncOffline,
   updateExpense,
 } from './expenses.service.js';
+import type { ExpenseGranularity } from '@fiviko/shared';
 import { generateRecurringForUser } from './recurring.service.js';
 import { recomputeActiveGoals } from '../goals/goals.service.js';
 import { listQuerySchema } from './expenses.schema.js';
@@ -38,6 +41,20 @@ export async function getMonthlySummary(req: Request, res: Response): Promise<vo
 export async function getTrend(req: Request, res: Response): Promise<void> {
   const months = req.query.months ? Number(req.query.months) : 6;
   res.json(await expenseTrend(userId(req), Number.isFinite(months) ? months : 6));
+}
+
+/** D/W/M/Y trend with current-vs-prior delta and top mover. */
+export async function getTrendByGranularity(req: Request, res: Response): Promise<void> {
+  const g = (typeof req.query.granularity === 'string' ? req.query.granularity : 'M').toUpperCase();
+  const granularity = (['D', 'W', 'M', 'Y'].includes(g) ? g : 'M') as ExpenseGranularity;
+  const bins = req.query.bins ? Number(req.query.bins) : undefined;
+  res.json(await expenseTrendByGranularity(userId(req), granularity, bins && Number.isFinite(bins) ? bins : undefined));
+}
+
+/** Quick-add chips: top-5 recurring spend patterns from the last 30 days. */
+export async function getQuickAdd(req: Request, res: Response): Promise<void> {
+  const take = req.query.take ? Number(req.query.take) : 5;
+  res.json(await quickAddSuggestions(userId(req), Number.isFinite(take) ? take : 5));
 }
 
 export async function putExpense(req: Request, res: Response): Promise<void> {

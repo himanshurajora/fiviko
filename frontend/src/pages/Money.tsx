@@ -107,6 +107,41 @@ export function Money() {
         </Button>
       </Card>
 
+      {/* This month so far — what your *behaviour* moved (excludes FX drift). */}
+      {summary && (
+        <Card padded className="bg-surface">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-ink">This month so far</h2>
+            <span className="text-[11px] text-ink-soft">{currentMonthLabel()}</span>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <p className="text-[11px] text-ink-soft">In</p>
+              <p className="text-base font-bold text-success">
+                +{formatCurrency(summary.currentMonthInflow, baseCurrency)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] text-ink-soft">Out</p>
+              <p className="text-base font-bold text-danger">
+                −{formatCurrency(summary.currentMonthOutflow, baseCurrency)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] text-ink-soft">Net</p>
+              <p className={`text-base font-extrabold ${summary.currentMonthNetChange >= 0 ? 'text-success' : 'text-danger'}`}>
+                {summary.currentMonthNetChange >= 0 ? '+' : '−'}
+                {formatCurrency(Math.abs(summary.currentMonthNetChange), baseCurrency)}
+              </p>
+            </div>
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-ink-soft">
+            Income credits, deposits, and pay-downs vs bills and expenses you logged.
+            FX drift on existing balances is excluded — that’s in the trend below.
+          </p>
+        </Card>
+      )}
+
       {/* Trend */}
       <Card padded>
         <div className="flex items-center justify-between">
@@ -174,6 +209,10 @@ export function Money() {
       </p>
     </div>
   );
+}
+
+function currentMonthLabel(): string {
+  return new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 }
 
 function chartLabel(date: string, g: NetWorthGranularity): string {

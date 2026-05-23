@@ -7,11 +7,13 @@ import { SUPPORTED_CURRENCIES } from '@/lib/currencies';
 import {
   useLiabilityMutations,
   usePayDownLiability,
+  useRestoreLiability,
   useUpdateLiability,
 } from '@/lib/finances';
 import { notify } from '@/store/toast';
 import { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
+import { undoableDelete } from '@/lib/undoable';
 
 interface Props {
   liabilities: LiabilityDTO[];
@@ -27,15 +29,10 @@ export function DebtsSection({ liabilities, assets, baseCurrency }: Props) {
   const { create, remove } = useLiabilityMutations();
   const update = useUpdateLiability();
   const payDown = usePayDownLiability();
+  const restore = useRestoreLiability();
   const [adding, setAdding] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-
-  async function onDelete(id: string, name: string) {
-    if (!window.confirm(`Remove "${name}"?`)) return;
-    await remove.mutateAsync(id);
-    notify.custom('Debt removed', { tone: 'info', icon: '🗑️', sound: 'tap' });
-  }
 
   return (
     <Card padded>
@@ -93,6 +90,25 @@ export function DebtsSection({ liabilities, assets, baseCurrency }: Props) {
                   </div>
                 </div>
 
+                {/* Paid-down progress — only meaningful once you've reduced from
+                    the original amount. Hidden until first pay-down. */}
+                {l.originalOutstandingAmount > 0 && l.paidDownProgress > 0 && (
+                  <div className="mt-2 pl-13">
+                    <div className="flex items-center justify-between text-[11px] text-ink-soft">
+                      <span>Paid down {Math.round(l.paidDownProgress * 100)}%</span>
+                      <span>
+                        {formatCurrency(l.originalOutstandingAmount - l.outstandingAmount, l.currency)} of {formatCurrency(l.originalOutstandingAmount, l.currency)}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-danger/10">
+                      <div
+                        className="h-full rounded-full bg-success transition-all"
+                        style={{ width: `${Math.min(100, Math.round(l.paidDownProgress * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-1 flex items-center justify-end gap-2 pl-13 text-xs">
                   <button
                     onClick={() => { setPayingId(payingId === l.id ? null : l.id); setEditingId(null); }}
@@ -106,7 +122,14 @@ export function DebtsSection({ liabilities, assets, baseCurrency }: Props) {
                   >
                     ✏️
                   </button>
-                  <button onClick={() => onDelete(l.id, l.name)} className="focus-ring rounded-full px-2 py-0.5 font-medium text-ink-soft hover:text-danger">
+                  <button
+                    onClick={() => undoableDelete({
+                      thing: 'Debt',
+                      doDelete: () => remove.mutateAsync(l.id),
+                      doRestore: () => restore.mutateAsync(l.id),
+                    })}
+                    className="focus-ring rounded-full px-2 py-0.5 font-medium text-ink-soft hover:text-danger"
+                  >
                     🗑️
                   </button>
                 </div>

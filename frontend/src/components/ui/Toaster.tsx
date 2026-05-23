@@ -17,22 +17,37 @@ export function Toaster() {
     <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex flex-col items-center gap-2 px-4" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <AnimatePresence>
         {toasts.map((t) => (
-          <motion.button
+          <motion.div
             key={t.id}
             layout
             initial={{ opacity: 0, y: -16, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ type: 'spring', damping: 22, stiffness: 320 }}
-            onClick={() => dismiss(t.id)}
             className={clsx(
-              'pointer-events-auto flex max-w-sm items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-semibold shadow-card backdrop-blur',
+              'pointer-events-auto flex max-w-sm items-center gap-3 rounded-2xl border px-4 py-2.5 text-sm font-semibold shadow-card backdrop-blur',
               TONE_STYLE[t.tone],
             )}
           >
-            {t.icon && <span aria-hidden>{t.icon}</span>}
-            <span>{t.message}</span>
-          </motion.button>
+            <button
+              onClick={() => dismiss(t.id)}
+              className="focus-ring flex flex-1 items-center gap-2 text-left"
+            >
+              {t.icon && <span aria-hidden>{t.icon}</span>}
+              <span>{t.message}</span>
+            </button>
+            {t.action && (
+              <button
+                onClick={() => {
+                  void t.action!.onClick();
+                  dismiss(t.id);
+                }}
+                className="focus-ring rounded-full bg-white/60 px-3 py-1 text-xs font-bold uppercase tracking-wide hover:bg-white"
+              >
+                {t.action.label}
+              </button>
+            )}
+          </motion.div>
         ))}
       </AnimatePresence>
     </div>

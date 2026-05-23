@@ -7,6 +7,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ExpenseListItem } from '@/components/expenses/ExpenseListItem';
 import { SpendingByCategory } from '@/components/expenses/SpendingByCategory';
 import { BudgetsCard } from '@/components/expenses/BudgetsCard';
+import { ExpenseTrendCard } from '@/components/expenses/ExpenseTrendCard';
+import { QuickAddChips } from '@/components/expenses/QuickAddChips';
 import { useDeleteExpense, useExpenses, useMonthlySummary, readPendingForDisplay } from '@/lib/expenses';
 import { useExpenseModal } from '@/store/expenseModal';
 import { useSync } from '@/store/sync';
@@ -90,6 +92,8 @@ export function Expenses() {
             />
           </div>
 
+          <QuickAddChips />
+          <ExpenseTrendCard currency={currency} />
           <SpendingByCategory summary={summary} />
           <BudgetsCard currency={currency} />
         </>

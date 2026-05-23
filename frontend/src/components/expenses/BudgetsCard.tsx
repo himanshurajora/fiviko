@@ -55,6 +55,7 @@ export function BudgetsCard({ currency }: { currency: string }) {
           const limit = b.monthlyLimit ?? 0;
           const pct = limit > 0 ? Math.min(100, Math.round((b.spent / limit) * 100)) : 0;
           const over = b.spent > limit;
+          const forecast = projectEndOfMonth(b.spent, limit);
           return (
             <li key={b.category}>
               <div className="flex items-center justify-between text-sm">
@@ -76,10 +77,38 @@ export function BudgetsCard({ currency }: { currency: string }) {
               <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted-border">
                 <div className={`h-full rounded-full ${over ? 'bg-danger' : pct > 80 ? 'bg-warning' : 'bg-secondary'}`} style={{ width: `${pct}%` }} />
               </div>
+              {/* Pace forecast — projects month-end spend at current run rate. */}
+              {forecast && (
+                <p className={`mt-1 text-[11px] ${forecast.willBust ? 'text-danger' : 'text-ink-soft'}`}>
+                  {forecast.willBust
+                    ? `⚠️ At this pace you’ll hit the cap in ${forecast.daysToBust}d — projected ${formatCurrency(forecast.projected, currency)} (${formatCurrency(forecast.projected - limit, currency)} over).`
+                    : `On pace for ${formatCurrency(forecast.projected, currency)} by month-end (${Math.round((forecast.projected / limit) * 100)}% of cap).`}
+                </p>
+              )}
             </li>
           );
         })}
       </ul>
     </Card>
   );
+}
+
+/** Estimate end-of-month spend at the current daily run-rate. Returns null if
+ *  no useful signal yet (fewer than 2 days elapsed or no spend). */
+function projectEndOfMonth(spent: number, limit: number): {
+  projected: number;
+  willBust: boolean;
+  daysToBust: number;
+} | null {
+  if (limit <= 0) return null;
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  if (dayOfMonth < 2 || spent <= 0) return null;
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const dailyRate = spent / dayOfMonth;
+  const projected = dailyRate * daysInMonth;
+  const remainingBudget = Math.max(0, limit - spent);
+  const daysToBust = dailyRate > 0 ? Math.ceil(remainingBudget / dailyRate) : Infinity;
+  const willBust = projected > limit;
+  return { projected, willBust, daysToBust };
 }

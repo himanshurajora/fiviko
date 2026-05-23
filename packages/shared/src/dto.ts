@@ -58,6 +58,11 @@ export interface FinancialSummary {
   currentMonthSpending: number;
   /** What the user can still safely spend this month. */
   safeRemainingSpend: number;
+  /** "This month so far" strip on the Money hub — derived from CashFlow rows. */
+  currentMonthInflow: number;
+  currentMonthOutflow: number;
+  /** inflow − outflow. The bit a user actually controls (FX drift is excluded). */
+  currentMonthNetChange: number;
 }
 
 export interface GoalDTO {
@@ -102,6 +107,10 @@ export interface LiabilityDTO {
   type: LiabilityType;
   name: string;
   outstandingAmount: number;
+  /** What was owed at creation; the denominator for "% paid down". */
+  originalOutstandingAmount: number;
+  /** 0..1, clipped — driven by outstanding vs original. */
+  paidDownProgress: number;
   monthlyPayment: number;
   currency: string;
   baseCurrencyOutstandingAmount: number;
@@ -114,6 +123,9 @@ export interface LiabilityDTO {
 export interface IncomeDTO {
   id: string;
   type: IncomeType;
+  /** Optional label so multiple sources of the same type are distinguishable. */
+  name: string | null;
+  /** Modelled/expected per-period amount in native currency. */
   amount: number;
   currency: string;
   baseCurrencyAmount: number;
@@ -122,8 +134,25 @@ export interface IncomeDTO {
   depositToAssetId: string | null;
   /** Last month (YYYY-MM) the auto-credit was applied. */
   lastDepositedMonth: string | null;
+  /** Most recent IncomeReceipt — null if the user hasn't logged any actuals yet. */
+  latestReceipt: IncomeReceiptDTO | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** A logged actual receipt for one income source in one period (YYYY-MM). */
+export interface IncomeReceiptDTO {
+  id: string;
+  incomeId: string;
+  /** YYYY-MM */
+  periodKey: string;
+  amount: number;
+  currency: string;
+  baseCurrencyAmount: number;
+  source: 'manual' | 'auto';
+  receivedAt: string;
+  note: string | null;
+  createdAt: string;
 }
 
 export interface MandatoryExpenseDTO {
@@ -259,6 +288,65 @@ export interface BadgeDTO {
   icon: string;
   unlocked: boolean;
   unlockedAt: string | null;
+}
+
+/** A transfer between two accounts — returns the two paired balance entries
+ *  the server wrote, plus the FX rate used if cross-currency. */
+export interface TransferResult {
+  /** Stable id linking both sides of the transfer. */
+  transferId: string;
+  fromAssetId: string;
+  toAssetId: string;
+  /** Native amount that left the source account. */
+  fromAmount: number;
+  fromCurrency: string;
+  /** Native amount that landed in the destination account (may differ if FX). */
+  toAmount: number;
+  toCurrency: string;
+  /** Rate applied at transfer time: toAmount = fromAmount × fxRate. */
+  fxRate: number;
+}
+
+/** One bin of expense data for the D/W/M/Y trend on the Expenses page. */
+export type ExpenseGranularity = 'D' | 'W' | 'M' | 'Y';
+
+export interface ExpenseTrendBin {
+  /** Bucket key — YYYY-MM-DD (D), YYYY-W## (W), YYYY-MM (M), YYYY (Y). */
+  key: string;
+  /** Human label rendered on the X axis. */
+  label: string;
+  /** Spend total in base currency for this bucket. */
+  total: number;
+}
+
+export interface ExpenseTrendResult {
+  granularity: ExpenseGranularity;
+  bins: ExpenseTrendBin[];
+  /** Total of the most recent fully-elapsed bin (the "current period"). */
+  currentTotal: number;
+  /** Total of the period immediately before that. */
+  priorTotal: number;
+  /** Signed: positive = spending grew. */
+  deltaAbsolute: number;
+  /** Signed proportion (1.0 = doubled). null if prior was zero. */
+  deltaPct: number | null;
+  /** The category that contributed most to the delta, if any. */
+  topMover: {
+    category: ExpenseCategory;
+    delta: number;
+  } | null;
+}
+
+/** One-tap recurring spend pattern derived from the user's last-30-days log. */
+export interface QuickAddSuggestion {
+  category: ExpenseCategory;
+  amount: number;
+  currency: string;
+  note: string | null;
+  paymentMethod: PaymentMethod;
+  needOrWant: NeedOrWant;
+  /** How often this exact pattern appeared in the last 30 days. */
+  occurrences: number;
 }
 
 /** A standard error envelope returned by the API. */

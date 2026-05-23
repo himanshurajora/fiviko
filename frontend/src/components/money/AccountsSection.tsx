@@ -5,10 +5,17 @@ import { Button } from '@/components/ui/Button';
 import { AssetRowEditor } from '@/components/tracker/AssetRowEditor';
 import { ASSET_LIQUIDITY, ASSET_OPTIONS } from '@/lib/financeMeta';
 import { SUPPORTED_CURRENCIES } from '@/lib/currencies';
-import { useAssetMutations, useDepositToAsset, useSetAssetBalance } from '@/lib/finances';
+import {
+  useAssetMutations,
+  useDepositToAsset,
+  useRestoreAsset,
+  useSetAssetBalance,
+  useTransferBetweenAssets,
+} from '@/lib/finances';
 import { notify } from '@/store/toast';
 import { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
+import { undoableDelete } from '@/lib/undoable';
 
 interface Props {
   assets: AssetDTO[];
@@ -17,12 +24,15 @@ interface Props {
   onLiveChange: (assetId: string, baseAmount: number) => void;
 }
 
-/** Accounts (assets) — list + inline balance edit + add + deposit + delete. */
+/** Accounts (assets) — inline balance edit + add money + transfer + add + undoable delete. */
 export function AccountsSection({ assets, baseCurrency, rateMap, onLiveChange }: Props) {
   const setBalance = useSetAssetBalance();
   const deposit = useDepositToAsset();
+  const transfer = useTransferBetweenAssets();
   const { create, remove } = useAssetMutations();
+  const restore = useRestoreAsset();
   const [adding, setAdding] = useState(false);
+  const [transferring, setTransferring] = useState(false);
   const [depositingId, setDepositingId] = useState<string | null>(null);
 
   async function commitBalance(id: string, amount: number) {
@@ -34,20 +44,49 @@ export function AccountsSection({ assets, baseCurrency, rateMap, onLiveChange }:
     }
   }
 
-  async function onDelete(id: string, name: string) {
-    if (!window.confirm(`Remove "${name}"? This deletes its balance history too.`)) return;
-    await remove.mutateAsync(id);
-    notify.custom('Account removed', { tone: 'info', icon: '🗑️', sound: 'tap' });
-  }
-
   return (
     <Card padded>
       <div className="flex items-center justify-between">
         <h2 className="font-bold text-ink">Accounts</h2>
-        <button onClick={() => setAdding((v) => !v)} className="focus-ring rounded-full px-3 py-1 text-sm font-semibold text-primary">
-          {adding ? 'Close' : '+ Add account'}
-        </button>
+        <div className="flex items-center gap-1">
+          {assets && assets.length >= 2 && (
+            <button
+              onClick={() => { setTransferring((v) => !v); setAdding(false); }}
+              className="focus-ring rounded-full px-3 py-1 text-sm font-semibold text-primary"
+            >
+              {transferring ? 'Close' : '⇄ Transfer'}
+            </button>
+          )}
+          <button
+            onClick={() => { setAdding((v) => !v); setTransferring(false); }}
+            className="focus-ring rounded-full px-3 py-1 text-sm font-semibold text-primary"
+          >
+            {adding ? 'Close' : '+ Add account'}
+          </button>
+        </div>
       </div>
+
+      {transferring && (
+        <TransferForm
+          assets={assets}
+          saving={transfer.isPending}
+          onCancel={() => setTransferring(false)}
+          onSubmit={async ({ fromAssetId, toAssetId, amount, note }) => {
+            try {
+              const res = await transfer.mutateAsync({ fromAssetId, toAssetId, amount, note });
+              const from = assets.find((a) => a.id === fromAssetId);
+              const to = assets.find((a) => a.id === toAssetId);
+              const msg = from && to && from.currency !== to.currency
+                ? `Transferred ${formatCurrency(res.fromAmount, res.fromCurrency)} → ${formatCurrency(res.toAmount, res.toCurrency)} @ ${res.fxRate}`
+                : `Transferred ${formatCurrency(res.fromAmount, res.fromCurrency)}`;
+              notify.custom(msg, { tone: 'success', icon: '⇄', sound: 'coin' });
+              setTransferring(false);
+            } catch (err) {
+              notify.error(getErrorMessage(err, 'Could not transfer'));
+            }
+          }}
+        />
+      )}
 
       {adding && (
         <AddAccountForm
@@ -84,7 +123,14 @@ export function AccountsSection({ assets, baseCurrency, rateMap, onLiveChange }:
                 <button onClick={() => setDepositingId(depositingId === a.id ? null : a.id)} className="focus-ring rounded-full bg-success/10 px-2.5 py-0.5 font-semibold text-success">
                   + Add money
                 </button>
-                <button onClick={() => onDelete(a.id, a.name)} className="focus-ring rounded-full px-2 py-0.5 font-medium text-ink-soft hover:text-danger">
+                <button
+                  onClick={() => undoableDelete({
+                    thing: 'Account',
+                    doDelete: () => remove.mutateAsync(a.id),
+                    doRestore: () => restore.mutateAsync(a.id),
+                  })}
+                  className="focus-ring rounded-full px-2 py-0.5 font-medium text-ink-soft hover:text-danger"
+                >
                   🗑️
                 </button>
               </div>
@@ -109,6 +155,84 @@ export function AccountsSection({ assets, baseCurrency, rateMap, onLiveChange }:
         </div>
       )}
     </Card>
+  );
+}
+
+function TransferForm({ assets, saving, onCancel, onSubmit }: {
+  assets: AssetDTO[];
+  saving?: boolean;
+  onCancel: () => void;
+  onSubmit: (p: { fromAssetId: string; toAssetId: string; amount: number; note: string | null }) => Promise<void>;
+}) {
+  const [fromAssetId, setFromAssetId] = useState<string>(assets[0]?.id ?? '');
+  const [toAssetId, setToAssetId] = useState<string>(assets[1]?.id ?? assets[0]?.id ?? '');
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const from = assets.find((a) => a.id === fromAssetId);
+  const to = assets.find((a) => a.id === toAssetId);
+
+  async function submit() {
+    const n = Number(amount);
+    if (!fromAssetId || !toAssetId) {
+      notify.error('Pick both accounts');
+      return;
+    }
+    if (fromAssetId === toAssetId) {
+      notify.error('Pick a different destination');
+      return;
+    }
+    if (!Number.isFinite(n) || n <= 0) {
+      notify.error('Enter a positive amount');
+      return;
+    }
+    await onSubmit({ fromAssetId, toAssetId, amount: n, note: note.trim() || null });
+  }
+
+  return (
+    <div className="mt-3 flex flex-col gap-2 rounded-2xl bg-primary/5 p-3">
+      <div className="flex gap-2">
+        <select
+          value={fromAssetId}
+          onChange={(e) => setFromAssetId(e.target.value)}
+          className="focus-ring h-11 flex-1 rounded-2xl border border-muted-border bg-surface px-3 text-sm"
+        >
+          {assets.map((a) => <option key={a.id} value={a.id}>From: {a.name} ({a.currency})</option>)}
+        </select>
+        <span className="grid h-11 w-8 place-items-center text-lg" aria-hidden>⇄</span>
+        <select
+          value={toAssetId}
+          onChange={(e) => setToAssetId(e.target.value)}
+          className="focus-ring h-11 flex-1 rounded-2xl border border-muted-border bg-surface px-3 text-sm"
+        >
+          {assets.map((a) => <option key={a.id} value={a.id}>To: {a.name} ({a.currency})</option>)}
+        </select>
+      </div>
+      <input
+        type="number"
+        inputMode="decimal"
+        placeholder={`Amount${from ? ` (${from.currency})` : ''}`}
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        className="focus-ring h-11 rounded-2xl border border-muted-border bg-surface px-3 text-sm"
+      />
+      <input
+        type="text"
+        placeholder="Note (optional)"
+        value={note}
+        maxLength={120}
+        onChange={(e) => setNote(e.target.value)}
+        className="focus-ring h-11 rounded-2xl border border-muted-border bg-surface px-3 text-sm"
+      />
+      {from && to && from.currency !== to.currency && (
+        <p className="text-[11px] text-ink-soft">
+          Cross-currency: we’ll convert at today’s rate when the transfer commits.
+        </p>
+      )}
+      <div className="flex gap-2">
+        <Button onClick={submit} loading={saving} fullWidth>⇄ Transfer</Button>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
   );
 }
 

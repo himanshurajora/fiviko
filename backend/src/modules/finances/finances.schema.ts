@@ -31,6 +31,7 @@ export const liabilitySchema = z.object({
 
 export const incomeSchema = z.object({
   type: z.enum(enumValues(IncomeType)),
+  name: z.string().trim().max(80).optional().nullable(),
   amount: amount.refine((n) => n > 0, 'Amount must be greater than 0'),
   currency,
   frequency: z.enum(enumValues(Frequency)).default(Frequency.Monthly),
@@ -58,6 +59,22 @@ export const depositSchema = z.object({ amount: z.number().positive(), note: z.s
 export const payDownSchema = z.object({
   amount: z.number().positive(),
   fromAssetId: z.string().optional().nullable(),
+});
+
+/** Atomic transfer between two of the user's accounts. */
+export const transferSchema = z.object({
+  fromAssetId: z.string().min(1),
+  toAssetId: z.string().min(1),
+  amount: z.number().positive(),
+  note: z.string().max(120).optional().nullable(),
+});
+
+/** Log an actual receipt for variable income (period in YYYY-MM). */
+export const receiptSchema = z.object({
+  periodKey: z.string().regex(/^\d{4}-\d{2}$/),
+  amount: z.number().min(0),
+  note: z.string().max(120).optional().nullable(),
+  receivedAt: z.string().datetime().optional(),
 });
 
 export type AssetInput = z.infer<typeof assetSchema>;

@@ -15,6 +15,12 @@ const BADGES = [
   { code: 'GOAL_ACHIEVER', name: 'Goal Achiever', description: 'Completed a savings goal.', icon: '🏆', unlockCondition: 'Achieve 1 goal' },
   { code: 'PRODUCTIVITY_INVESTOR', name: 'Productivity Investor', description: 'Invested in a high-productivity purchase.', icon: '⚡', unlockCondition: 'Buy a high-productivity goal' },
   { code: 'DREAM_PLANNER', name: 'Dream Planner', description: 'Created a long-term dream goal.', icon: '🌙', unlockCondition: 'Create a long-term goal' },
+  // Money-hub badges (Phase 1.5) — see evaluateMoneyBadges.
+  { code: 'INCOME_DIVERSIFIER', name: 'Income Diversifier', description: 'Tracked 3 or more active income sources.', icon: '🌳', unlockCondition: '3+ active incomes' },
+  { code: 'INTERNATIONAL_INCOME', name: 'International Income', description: 'Earned in two or more currencies.', icon: '🌍', unlockCondition: '2+ currencies in income' },
+  { code: 'DEBT_CRUSHER_HALF', name: 'Debt Crusher', description: 'Paid down a debt by half — momentum.', icon: '🛡️', unlockCondition: 'Liability ≥50% paid down' },
+  { code: 'DEBT_CRUSHER_FULL', name: 'Debt Free', description: 'Wiped out an entire debt. Iron-clad.', icon: '🦾', unlockCondition: 'Liability 100% paid down' },
+  { code: 'MULTI_ACCOUNT', name: 'Multi-Account', description: '3 accounts across at least 2 types — diversified.', icon: '🏛️', unlockCondition: '3+ accounts, 2+ types' },
 ];
 
 /** Phase 1 challenges (spec §14). */
