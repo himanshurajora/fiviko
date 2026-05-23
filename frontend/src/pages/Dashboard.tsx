@@ -60,7 +60,7 @@ export function Dashboard() {
       </header>
 
       {showStaleBanner && (
-        <Link to="/app/networth" className="focus-ring">
+        <Link to="/app/money" className="focus-ring">
           <Card padded animate={false} className="flex items-center justify-between gap-3 bg-warning/10">
             <div className="flex items-center gap-3">
               <span className="text-2xl" aria-hidden>💎</span>

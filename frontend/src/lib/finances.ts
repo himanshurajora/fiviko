@@ -129,3 +129,63 @@ export const useAssetMutations = () => useResourceMutations<AssetPayload>('asset
 export const useLiabilityMutations = () => useResourceMutations<LiabilityPayload>('liabilities');
 export const useIncomeMutations = () => useResourceMutations<IncomePayload>('incomes');
 export const useMandatoryMutations = () => useResourceMutations<MandatoryPayload>('mandatory-expenses');
+
+// --- Edits for recurring rows (Money hub) ---------------------------------
+
+export function useUpdateIncome() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...patch }: { id: string; amount?: number; type?: string; depositToAssetId?: string | null }): Promise<IncomeDTO> =>
+      (await api.put(`/incomes/${id}`, patch)).data,
+    onSuccess: () => invalidateProfile(qc),
+  });
+}
+
+export function useUpdateMandatory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...patch }: { id: string; amount?: number; category?: string }): Promise<MandatoryExpenseDTO> =>
+      (await api.put(`/mandatory-expenses/${id}`, patch)).data,
+    onSuccess: () => invalidateProfile(qc),
+  });
+}
+
+export function useUpdateLiability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...patch }: { id: string; name?: string; outstandingAmount?: number; monthlyPayment?: number }): Promise<LiabilityDTO> =>
+      (await api.put(`/liabilities/${id}`, patch)).data,
+    onSuccess: () => {
+      invalidateProfile(qc);
+      void qc.invalidateQueries({ queryKey: ['networth-history'] });
+    },
+  });
+}
+
+// --- Money movement (windfall deposit, loan pay-down) ---------------------
+
+export function useDepositToAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, amount, note }: { id: string; amount: number; note?: string | null }): Promise<AssetDTO> =>
+      (await api.post(`/assets/${id}/deposit`, { amount, note: note ?? null })).data,
+    onSuccess: () => {
+      invalidateProfile(qc);
+      void qc.invalidateQueries({ queryKey: ['networth-history'] });
+      void qc.invalidateQueries({ queryKey: ['asset-history'] });
+    },
+  });
+}
+
+export function usePayDownLiability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, amount, fromAssetId }: { id: string; amount: number; fromAssetId?: string | null }): Promise<LiabilityDTO> =>
+      (await api.post(`/liabilities/${id}/pay-down`, { amount, fromAssetId: fromAssetId ?? null })).data,
+    onSuccess: () => {
+      invalidateProfile(qc);
+      void qc.invalidateQueries({ queryKey: ['networth-history'] });
+      void qc.invalidateQueries({ queryKey: ['asset-history'] });
+    },
+  });
+}

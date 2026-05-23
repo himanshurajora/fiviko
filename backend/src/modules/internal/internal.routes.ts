@@ -7,6 +7,7 @@ import { applyCurrencyRates, shouldSyncCurrency } from '../currency/currency-syn
 import { generateRecurringForAllUsers } from '../expenses/recurring.service.js';
 import { snapshotMonthForAllUsers as snapshotIncomeForAll, monthKey } from '../income-history/income-history.service.js';
 import { snapshotAllUsersToday } from '../networth-history/networth-history.service.js';
+import { processAutoDepositsForAllUsers } from '../finances/finances.service.js';
 
 const ratesSchema = z.object({
   rates: z
@@ -60,5 +61,13 @@ internalRouter.post(
   '/jobs/networth-snapshot',
   asyncHandler(async (_req, res) => {
     res.json({ snapshotted: await snapshotAllUsersToday() });
+  }),
+);
+
+/** Monthly auto-deposit of recurring income into each user's chosen account. */
+internalRouter.post(
+  '/jobs/auto-deposit',
+  asyncHandler(async (_req, res) => {
+    res.json({ credited: await processAutoDepositsForAllUsers() });
   }),
 );

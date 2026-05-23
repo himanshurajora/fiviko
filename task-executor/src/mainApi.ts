@@ -38,4 +38,8 @@ export const mainApi = {
     const { data } = await client.post('/jobs/networth-snapshot');
     return data;
   },
+  async runAutoDeposits(): Promise<{ credited: number }> {
+    const { data } = await client.post('/jobs/auto-deposit');
+    return data;
+  },
 };

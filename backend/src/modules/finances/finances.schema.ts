@@ -45,8 +45,24 @@ export const mandatoryExpenseSchema = z.object({
 
 export const assetUpdateSchema = assetSchema.partial();
 export const liabilityUpdateSchema = liabilitySchema.partial();
+export const incomeUpdateSchema = incomeSchema.partial().extend({
+  /** Asset that monthly receives this income automatically (null clears). */
+  depositToAssetId: z.string().optional().nullable(),
+});
+export const mandatoryExpenseUpdateSchema = mandatoryExpenseSchema.partial();
+
+/** Add a windfall (bonus, gift, refund) to an account balance. */
+export const depositSchema = z.object({ amount: z.number().positive(), note: z.string().max(120).optional().nullable() });
+
+/** Pay down a loan (optionally deducting from an account, like goal contribute). */
+export const payDownSchema = z.object({
+  amount: z.number().positive(),
+  fromAssetId: z.string().optional().nullable(),
+});
 
 export type AssetInput = z.infer<typeof assetSchema>;
 export type LiabilityInput = z.infer<typeof liabilitySchema>;
 export type IncomeInput = z.infer<typeof incomeSchema>;
+export type IncomeUpdateInput = z.infer<typeof incomeUpdateSchema>;
 export type MandatoryExpenseInput = z.infer<typeof mandatoryExpenseSchema>;
+export type MandatoryExpenseUpdateInput = z.infer<typeof mandatoryExpenseUpdateSchema>;

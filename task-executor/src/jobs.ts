@@ -48,6 +48,16 @@ export async function monthlyIncomeJob(): Promise<void> {
   }
 }
 
+/** Monthly: auto-deposit recurring income into each user's designated account. */
+export async function monthlyAutoDepositJob(): Promise<void> {
+  try {
+    const { credited } = await mainApi.runAutoDeposits();
+    log(`💰 Auto-deposited income into ${credited} account(s).`);
+  } catch (err) {
+    log(`💰 Auto-deposit failed: ${(err as Error).message}`);
+  }
+}
+
 /** Daily: net-worth snapshot so the chart reflects FX drift on no-update days. */
 export async function dailyNetWorthSnapshotJob(): Promise<void> {
   try {

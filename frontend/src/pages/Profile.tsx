@@ -1,49 +1,24 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Frequency, LiquidityType } from '@fiviko/shared';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { ProfileSection, type AddFormValue, type ProfileItem } from '@/components/settings/ProfileSection';
 import { LevelBadge } from '@/components/gamification/LevelBadge';
 import { useLevel } from '@/lib/gamification';
 import { useSound, playSound } from '@/lib/sound';
 import { useAuth } from '@/store/auth';
-import {
-  useAssetMutations,
-  useAssets,
-  useIncomeMutations,
-  useIncomes,
-  useLiabilities,
-  useLiabilityMutations,
-  useMandatoryExpenses,
-  useMandatoryMutations,
-} from '@/lib/finances';
-import {
-  ASSET_LIQUIDITY,
-  ASSET_OPTIONS,
-  INCOME_OPTIONS,
-  LIABILITY_OPTIONS,
-  MANDATORY_OPTIONS,
-} from '@/lib/financeMeta';
 import { PERSONALITY_OPTIONS } from '@/lib/personality';
-import { formatCurrency } from '@/lib/format';
 
-const labelOf = (opts: { value: string; label: string }[], v: string) => opts.find((o) => o.value === v)?.label ?? v;
-
+/**
+ * Profile & Settings — account info, level, preferences and legal copy.
+ *
+ * Finance CRUD (income, bills, accounts, debts) intentionally lives in the
+ * Money tab now, not here. Settings is for "who you are", not "what you have".
+ */
 export function Profile() {
   const navigate = useNavigate();
   const user = useAuth((s) => s.user);
   const logout = useAuth((s) => s.logout);
   const deleteAccount = useAuth((s) => s.deleteAccount);
   const cur = user?.baseCurrency ?? 'USD';
-
-  const incomes = useIncomes();
-  const mandatory = useMandatoryExpenses();
-  const assets = useAssets();
-  const liabilities = useLiabilities();
-  const incomeM = useIncomeMutations();
-  const mandatoryM = useMandatoryMutations();
-  const assetM = useAssetMutations();
-  const liabilityM = useLiabilityMutations();
 
   const { data: level } = useLevel();
   const soundEnabled = useSound((s) => s.enabled);
@@ -93,11 +68,25 @@ export function Profile() {
 
       {/* Quick links */}
       <div className="grid grid-cols-2 gap-3">
+        <Link to="/app/money" className="focus-ring">
+          <Card padded animate={false} className="h-full">
+            <p className="text-2xl" aria-hidden>💎</p>
+            <p className="mt-1 font-bold text-ink">My money</p>
+            <p className="text-xs text-ink-soft">Accounts, debts, income, bills →</p>
+          </Card>
+        </Link>
         <Link to="/app/reports" className="focus-ring">
           <Card padded animate={false} className="h-full">
             <p className="text-2xl" aria-hidden>📊</p>
             <p className="mt-1 font-bold text-ink">Monthly report</p>
             <p className="text-xs text-ink-soft">Trends & insights →</p>
+          </Card>
+        </Link>
+        <Link to="/app/badges" className="focus-ring">
+          <Card padded animate={false} className="h-full">
+            <p className="text-2xl" aria-hidden>🏅</p>
+            <p className="mt-1 font-bold text-ink">Badges</p>
+            <p className="text-xs text-ink-soft">What you’ve unlocked →</p>
           </Card>
         </Link>
         <Link to="/app/about" className="focus-ring">
@@ -108,41 +97,6 @@ export function Profile() {
           </Card>
         </Link>
       </div>
-
-      {/* Financial profile editors */}
-      <h2 className="mt-2 text-lg font-extrabold text-ink">Your financial profile</h2>
-
-      <ProfileSection
-        title="Income" emoji="💰" baseCurrency={cur} options={INCOME_OPTIONS} amountLabel="Monthly amount"
-        adding={incomeM.create.isPending}
-        items={(incomes.data ?? []).map<ProfileItem>((i) => ({ id: i.id, title: labelOf(INCOME_OPTIONS, i.type), subtitle: i.frequency.toLowerCase(), amount: i.amount, currency: i.currency }))}
-        onAdd={(v: AddFormValue) => incomeM.create.mutateAsync({ type: v.key as never, amount: v.amount, currency: cur, frequency: Frequency.Monthly })}
-        onDelete={(id) => incomeM.remove.mutate(id)}
-      />
-
-      <ProfileSection
-        title="Monthly must-pays" emoji="🏠" baseCurrency={cur} options={MANDATORY_OPTIONS} amountLabel="Monthly amount"
-        adding={mandatoryM.create.isPending}
-        items={(mandatory.data ?? []).map<ProfileItem>((m) => ({ id: m.id, title: labelOf(MANDATORY_OPTIONS, m.category), subtitle: m.frequency.toLowerCase(), amount: m.amount, currency: m.currency }))}
-        onAdd={(v) => mandatoryM.create.mutateAsync({ category: v.key as never, amount: v.amount, currency: cur, frequency: Frequency.Monthly })}
-        onDelete={(id) => mandatoryM.remove.mutate(id)}
-      />
-
-      <ProfileSection
-        title="Assets" emoji="🏦" baseCurrency={cur} options={ASSET_OPTIONS} hasName amountLabel="Value"
-        adding={assetM.create.isPending}
-        items={(assets.data ?? []).map<ProfileItem>((a) => ({ id: a.id, title: a.name, subtitle: labelOf(ASSET_OPTIONS, a.type), amount: a.amount, currency: a.currency }))}
-        onAdd={(v) => assetM.create.mutateAsync({ type: v.key as never, name: v.name || labelOf(ASSET_OPTIONS, v.key), amount: v.amount, currency: cur, liquidityType: ASSET_LIQUIDITY[v.key] ?? LiquidityType.SemiLiquid })}
-        onDelete={(id) => assetM.remove.mutate(id)}
-      />
-
-      <ProfileSection
-        title="Debts & EMIs" emoji="💳" baseCurrency={cur} options={LIABILITY_OPTIONS} hasName amountLabel="Outstanding" secondAmountLabel="Monthly payment"
-        adding={liabilityM.create.isPending}
-        items={(liabilities.data ?? []).map<ProfileItem>((l) => ({ id: l.id, title: l.name, subtitle: `${labelOf(LIABILITY_OPTIONS, l.type)} · ${formatCurrency(l.monthlyPayment, l.currency)}/mo`, amount: l.outstandingAmount, currency: l.currency }))}
-        onAdd={(v) => liabilityM.create.mutateAsync({ type: v.key as never, name: v.name || labelOf(LIABILITY_OPTIONS, v.key), outstandingAmount: v.amount, monthlyPayment: v.amount2, currency: cur })}
-        onDelete={(id) => liabilityM.remove.mutate(id)}
-      />
 
       {/* Preferences */}
       <Card padded animate={false}>

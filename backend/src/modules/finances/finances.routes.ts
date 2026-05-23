@@ -6,10 +6,14 @@ import { validateBody } from '../../middleware/validate.js';
 import {
   assetSchema,
   assetUpdateSchema,
+  depositSchema,
   incomeSchema,
+  incomeUpdateSchema,
   liabilitySchema,
   liabilityUpdateSchema,
   mandatoryExpenseSchema,
+  mandatoryExpenseUpdateSchema,
+  payDownSchema,
 } from './finances.schema.js';
 import * as svc from './finances.service.js';
 import { recomputeActiveGoals } from '../goals/goals.service.js';
@@ -42,6 +46,12 @@ assetsRouter.put('/:id/balance', validateBody(balanceSchema), asyncHandler(async
   await recompute(uid(req));
   res.json(r);
 }));
+/** Add a windfall (bonus, gift, refund) to the account. */
+assetsRouter.post('/:id/deposit', validateBody(depositSchema), asyncHandler(async (req, res) => {
+  const r = await svc.depositToAsset(uid(req), req.params.id, req.body.amount, req.body.note);
+  await recompute(uid(req));
+  res.json(r);
+}));
 assetsRouter.delete('/:id', asyncHandler(async (req, res) => { await svc.deleteAsset(uid(req), req.params.id); await recompute(uid(req)); res.json({ ok: true }); }));
 
 export const liabilitiesRouter = Router();
@@ -49,16 +59,24 @@ liabilitiesRouter.use(requireAuth);
 liabilitiesRouter.post('/', validateBody(liabilitySchema), asyncHandler(async (req, res) => { const r = await svc.createLiability(uid(req), req.body); await recompute(uid(req)); res.status(201).json(r); }));
 liabilitiesRouter.get('/', asyncHandler(async (req, res) => res.json(await svc.listLiabilities(uid(req)))));
 liabilitiesRouter.put('/:id', validateBody(liabilityUpdateSchema), asyncHandler(async (req, res) => { const r = await svc.updateLiability(uid(req), req.params.id, req.body); await recompute(uid(req)); res.json(r); }));
+/** Pay down the loan; optionally deduct from a real account. */
+liabilitiesRouter.post('/:id/pay-down', validateBody(payDownSchema), asyncHandler(async (req, res) => {
+  const r = await svc.payDownLiability(uid(req), req.params.id, req.body.amount, req.body.fromAssetId);
+  await recompute(uid(req));
+  res.json(r);
+}));
 liabilitiesRouter.delete('/:id', asyncHandler(async (req, res) => { await svc.deleteLiability(uid(req), req.params.id); await recompute(uid(req)); res.json({ ok: true }); }));
 
 export const incomesRouter = Router();
 incomesRouter.use(requireAuth);
 incomesRouter.post('/', validateBody(incomeSchema), asyncHandler(async (req, res) => { const r = await svc.createIncome(uid(req), req.body); await recompute(uid(req)); res.status(201).json(r); }));
 incomesRouter.get('/', asyncHandler(async (req, res) => res.json(await svc.listIncomes(uid(req)))));
+incomesRouter.put('/:id', validateBody(incomeUpdateSchema), asyncHandler(async (req, res) => { const r = await svc.updateIncome(uid(req), req.params.id, req.body); await recompute(uid(req)); res.json(r); }));
 incomesRouter.delete('/:id', asyncHandler(async (req, res) => { await svc.deleteIncome(uid(req), req.params.id); await recompute(uid(req)); res.json({ ok: true }); }));
 
 export const mandatoryExpensesRouter = Router();
 mandatoryExpensesRouter.use(requireAuth);
 mandatoryExpensesRouter.post('/', validateBody(mandatoryExpenseSchema), asyncHandler(async (req, res) => { const r = await svc.createMandatoryExpense(uid(req), req.body); await recompute(uid(req)); res.status(201).json(r); }));
 mandatoryExpensesRouter.get('/', asyncHandler(async (req, res) => res.json(await svc.listMandatoryExpenses(uid(req)))));
+mandatoryExpensesRouter.put('/:id', validateBody(mandatoryExpenseUpdateSchema), asyncHandler(async (req, res) => { const r = await svc.updateMandatoryExpense(uid(req), req.params.id, req.body); await recompute(uid(req)); res.json(r); }));
 mandatoryExpensesRouter.delete('/:id', asyncHandler(async (req, res) => { await svc.deleteMandatoryExpense(uid(req), req.params.id); await recompute(uid(req)); res.json({ ok: true }); }));

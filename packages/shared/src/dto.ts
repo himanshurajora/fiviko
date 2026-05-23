@@ -118,6 +118,10 @@ export interface IncomeDTO {
   currency: string;
   baseCurrencyAmount: number;
   frequency: Frequency;
+  /** Asset that auto-receives this income each month, or null. */
+  depositToAssetId: string | null;
+  /** Last month (YYYY-MM) the auto-credit was applied. */
+  lastDepositedMonth: string | null;
   createdAt: string;
   updatedAt: string;
 }

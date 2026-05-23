@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { config } from './config.js';
-import { currencySyncJob, dailyNetWorthSnapshotJob, monthlyIncomeJob, recurringExpensesJob } from './jobs.js';
+import { currencySyncJob, dailyNetWorthSnapshotJob, monthlyAutoDepositJob, monthlyIncomeJob, recurringExpensesJob } from './jobs.js';
 
 /**
  * Fiviko task executor — a standalone scheduler that drives periodic work by
@@ -28,11 +28,14 @@ async function main(): Promise<void> {
     () => {
       void recurringExpensesJob();
       void monthlyIncomeJob();
+      // Auto-credit salaries into each user's designated bank account. Server-
+      // side idempotency (lastDepositedMonth) makes retries safe.
+      void monthlyAutoDepositJob();
     },
     { timezone: 'UTC' },
   );
 
-  console.log('⏰ task-executor schedules registered (currency hourly; net-worth daily; recurring + income monthly).');
+  console.log('⏰ task-executor schedules registered (currency hourly; net-worth daily; recurring + income + auto-deposit monthly).');
 }
 
 main().catch((err) => {

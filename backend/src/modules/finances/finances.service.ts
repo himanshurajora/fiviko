@@ -45,6 +45,7 @@ export const toLiabilityDTO = (l: Liability): LiabilityDTO => ({
 export const toIncomeDTO = (i: Income): IncomeDTO => ({
   id: i.id, type: i.type as IncomeType, amount: dec(i.amount), currency: i.currency,
   baseCurrencyAmount: dec(i.baseCurrencyAmount), frequency: i.frequency as Frequency,
+  depositToAssetId: i.depositToAssetId, lastDepositedMonth: i.lastDepositedMonth,
   createdAt: i.createdAt.toISOString(), updatedAt: i.updatedAt.toISOString(),
 });
 
@@ -207,4 +208,167 @@ export async function deleteMandatoryExpense(userId: string, id: string): Promis
   const existing = await prisma.mandatoryExpense.findFirst({ where: { id, userId } });
   if (!existing) throw AppError.notFound('Mandatory expense not found');
   await prisma.mandatoryExpense.delete({ where: { id } });
+}
+
+// --- Editing recurring rows (amount, frequency, deposit target) -----------
+
+export async function updateIncome(
+  userId: string,
+  id: string,
+  input: { type?: IncomeType; amount?: number; currency?: string; frequency?: Frequency; depositToAssetId?: string | null },
+): Promise<IncomeDTO> {
+  const existing = await prisma.income.findFirst({ where: { id, userId } });
+  if (!existing) throw AppError.notFound('Income not found');
+  const base = await baseCurrencyOf(userId);
+  const data: Prisma.IncomeUpdateInput = {};
+  if (input.type !== undefined) data.type = input.type;
+  if (input.frequency !== undefined) data.frequency = input.frequency;
+  if (input.amount !== undefined || input.currency !== undefined) {
+    const amount = input.amount ?? dec(existing.amount);
+    const currency = input.currency ?? existing.currency;
+    data.amount = D(amount);
+    data.currency = currency;
+    data.baseCurrencyAmount = D(await convertCurrency(amount, currency, base));
+  }
+  if (input.depositToAssetId !== undefined) {
+    if (input.depositToAssetId) {
+      // Verify the user owns the target asset.
+      const owned = await prisma.asset.findFirst({ where: { id: input.depositToAssetId, userId }, select: { id: true } });
+      if (!owned) throw AppError.badRequest('Selected account not found');
+      data.depositToAssetId = input.depositToAssetId;
+    } else {
+      data.depositToAssetId = null;
+    }
+  }
+  return toIncomeDTO(await prisma.income.update({ where: { id }, data }));
+}
+
+export async function updateMandatoryExpense(
+  userId: string,
+  id: string,
+  input: { category?: MandatoryExpenseCategory; amount?: number; currency?: string; frequency?: Frequency },
+): Promise<MandatoryExpenseDTO> {
+  const existing = await prisma.mandatoryExpense.findFirst({ where: { id, userId } });
+  if (!existing) throw AppError.notFound('Mandatory expense not found');
+  const base = await baseCurrencyOf(userId);
+  const data: Prisma.MandatoryExpenseUpdateInput = {};
+  if (input.category !== undefined) data.category = input.category;
+  if (input.frequency !== undefined) data.frequency = input.frequency;
+  if (input.amount !== undefined || input.currency !== undefined) {
+    const amount = input.amount ?? dec(existing.amount);
+    const currency = input.currency ?? existing.currency;
+    data.amount = D(amount);
+    data.currency = currency;
+    data.baseCurrencyAmount = D(await convertCurrency(amount, currency, base));
+  }
+  return toMandatoryExpenseDTO(await prisma.mandatoryExpense.update({ where: { id }, data }));
+}
+
+// --- Money movement helpers (windfall deposit, loan pay-down) -------------
+
+/** Add a windfall to an account balance (bonus, refund, gift). Amount in the
+ *  asset's own currency. Writes a balance log entry; recompute happens upstream. */
+export async function depositToAsset(userId: string, assetId: string, amount: number, note?: string | null): Promise<AssetDTO> {
+  if (amount <= 0) throw AppError.badRequest('Deposit must be greater than 0');
+  const asset = await prisma.asset.findFirst({ where: { id: assetId, userId } });
+  if (!asset) throw AppError.notFound('Account not found');
+  const newAmount = round2(dec(asset.amount) + amount);
+  const base = await convertCurrency(newAmount, asset.currency, await baseCurrencyOf(userId));
+  const updated = await prisma.asset.update({
+    where: { id: assetId },
+    data: { amount: D(newAmount), baseCurrencyAmount: D(base) },
+  });
+  await prisma.assetBalanceEntry.create({
+    data: { userId, assetId, amount: D(newAmount), recordedAt: new Date(), source: note ?? 'deposit' },
+  });
+  return toAssetDTO(updated);
+}
+
+/** Pay down a liability; optionally deduct the amount from a real account so net
+ *  worth stays consistent (analogous to goal contributions from a pot). */
+export async function payDownLiability(
+  userId: string,
+  liabilityId: string,
+  amount: number,
+  fromAssetId?: string | null,
+): Promise<LiabilityDTO> {
+  if (amount <= 0) throw AppError.badRequest('Payment must be greater than 0');
+  const liability = await prisma.liability.findFirst({ where: { id: liabilityId, userId } });
+  if (!liability) throw AppError.notFound('Loan not found');
+  const base = await baseCurrencyOf(userId);
+
+  if (fromAssetId) {
+    const asset = await prisma.asset.findFirst({ where: { id: fromAssetId, userId } });
+    if (!asset) throw AppError.badRequest('Source account not found');
+    const debit = await convertCurrency(amount, liability.currency, asset.currency);
+    if (debit > dec(asset.amount)) throw AppError.badRequest('Not enough in that account for this payment');
+    const newAssetAmount = round2(dec(asset.amount) - debit);
+    const newAssetBase = await convertCurrency(newAssetAmount, asset.currency, base);
+    await prisma.asset.update({
+      where: { id: asset.id },
+      data: { amount: D(newAssetAmount), baseCurrencyAmount: D(newAssetBase) },
+    });
+    await prisma.assetBalanceEntry.create({
+      data: { userId, assetId: asset.id, amount: D(newAssetAmount), recordedAt: new Date(), source: 'loan-payment' },
+    });
+  }
+
+  const newOutstanding = Math.max(0, round2(dec(liability.outstandingAmount) - amount));
+  const newOutstandingBase = await convertCurrency(newOutstanding, liability.currency, base);
+  const updated = await prisma.liability.update({
+    where: { id: liabilityId },
+    data: {
+      outstandingAmount: D(newOutstanding),
+      baseCurrencyOutstandingAmount: D(newOutstandingBase),
+    },
+  });
+  return toLiabilityDTO(updated);
+}
+
+// --- Monthly auto-deposit (salary → account) ------------------------------
+
+function monthKey(d = new Date()): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * For each income with `depositToAssetId` whose `lastDepositedMonth` is older
+ * than `month`, credits the target account by the income's amount (converted to
+ * the account's currency) and stamps the month. Idempotent.
+ */
+export async function processAutoDeposits(userId: string, month: string = monthKey()): Promise<number> {
+  const incomes = await prisma.income.findMany({
+    where: { userId, depositToAssetId: { not: null }, NOT: { lastDepositedMonth: month } },
+  });
+  let credited = 0;
+  for (const inc of incomes) {
+    if (!inc.depositToAssetId) continue;
+    const asset = await prisma.asset.findFirst({ where: { id: inc.depositToAssetId, userId } });
+    if (!asset) continue;
+    const credit = await convertCurrency(dec(inc.amount), inc.currency, asset.currency);
+    const newAmount = round2(dec(asset.amount) + credit);
+    const base = await convertCurrency(newAmount, asset.currency, await baseCurrencyOf(userId));
+    await prisma.asset.update({
+      where: { id: asset.id },
+      data: { amount: D(newAmount), baseCurrencyAmount: D(base) },
+    });
+    await prisma.assetBalanceEntry.create({
+      data: { userId, assetId: asset.id, amount: D(newAmount), recordedAt: new Date(), source: `salary-auto:${month}` },
+    });
+    await prisma.income.update({ where: { id: inc.id }, data: { lastDepositedMonth: month } });
+    credited += 1;
+  }
+  return credited;
+}
+
+/** Scheduler hook: run auto-deposits for every user. */
+export async function processAutoDepositsForAllUsers(month: string = monthKey()): Promise<number> {
+  const users = await prisma.user.findMany({ select: { id: true } });
+  let total = 0;
+  for (const u of users) total += await processAutoDeposits(u.id, month);
+  return total;
+}
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
 }

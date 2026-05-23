@@ -283,6 +283,11 @@ model Income {
   currency           String
   baseCurrencyAmount Decimal    @db.Decimal(18, 2)
   frequency          Frequency  @default(MONTHLY)
+  /// When set, the monthly executor credits this asset by `amount` each month
+  /// (e.g. salary auto-deposited into your main bank account).
+  depositToAssetId   String?
+  /// YYYY-MM of the month the credit was last applied — guards against doubles.
+  lastDepositedMonth String?
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 

@@ -1,11 +1,21 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { CountUp } from '@/components/ui/CountUp';
-import { AssetRowEditor } from '@/components/tracker/AssetRowEditor';
-import { useAssets, useLiabilities, useNetWorthHistory, useSetAssetBalance, useSnapshotNetWorth, type NetWorthGranularity } from '@/lib/finances';
+import { AccountsSection } from '@/components/money/AccountsSection';
+import { DebtsSection } from '@/components/money/DebtsSection';
+import { IncomeSection } from '@/components/money/IncomeSection';
+import { BillsSection } from '@/components/money/BillsSection';
+import {
+  useAssets,
+  useIncomes,
+  useLiabilities,
+  useMandatoryExpenses,
+  useNetWorthHistory,
+  useSnapshotNetWorth,
+  type NetWorthGranularity,
+} from '@/lib/finances';
 import { useFinancialSummary } from '@/lib/queries';
 import { useAuth } from '@/store/auth';
 import { formatCurrency } from '@/lib/format';
@@ -13,28 +23,31 @@ import { notify } from '@/store/toast';
 import { getErrorMessage } from '@/lib/api';
 
 /**
- * The main day-to-day tracking surface: see your live net worth (in base
- * currency), update each account in seconds, and view the trend at any
- * granularity. Built for under-30-seconds-a-day usage.
+ * Money hub — one screen to manage everything the user owns, owes, earns and
+ * pays. The "Net worth" tab evolved from a read-mostly tracker into the full
+ * money-management surface, so all finance CRUD lives here (not in Settings).
+ *
+ * Reads stay live: balances convert through the latest FX rates on every render,
+ * and the trend reflects daily snapshots so even no-activity days show drift.
  */
-export function NetWorthTracker() {
+export function Money() {
   const user = useAuth((s) => s.user);
   const baseCurrency = user?.baseCurrency ?? 'USD';
 
   const { data: summary } = useFinancialSummary();
   const { data: assets } = useAssets();
   const { data: liabilities } = useLiabilities();
-  const setBalance = useSetAssetBalance();
+  const { data: incomes } = useIncomes();
+  const { data: bills } = useMandatoryExpenses();
   const snapshot = useSnapshotNetWorth();
 
   const [granularity, setGranularity] = useState<NetWorthGranularity>('M');
   const { data: history } = useNetWorthHistory(granularity);
 
-  // Per-asset live-base contribution; merged with assets to give a real-time total.
+  // Optimistic per-asset base contribution so the live total reflects typing
+  // in the accounts section before the server round-trips.
   const [liveByAsset, setLiveByAsset] = useState<Record<string, number>>({});
 
-  // Build a currency → base-rate map from the asset list itself (each asset
-  // carries its baseCurrencyAmount cached from the server's latest rates).
   const rateMap = useMemo(() => {
     const m = new Map<string, number>([[baseCurrency, 1]]);
     for (const a of assets ?? []) {
@@ -43,20 +56,9 @@ export function NetWorthTracker() {
     return m;
   }, [assets, baseCurrency]);
 
-  // Live net worth as you type: sum of (live or current) per-asset base values,
-  // minus the latest liabilities total (which the user can edit in Settings).
   const liveAssetsTotal = (assets ?? []).reduce((s, a) => s + (liveByAsset[a.id] ?? a.baseCurrencyAmount), 0);
   const liveLiabTotal = summary?.totalLiabilities ?? 0;
   const liveNetWorth = liveAssetsTotal - liveLiabTotal;
-
-  async function commitBalance(id: string, amount: number) {
-    try {
-      await setBalance.mutateAsync({ id, amount });
-      notify.custom('Updated', { tone: 'success', icon: '✅', sound: 'save' });
-    } catch (err) {
-      notify.error(getErrorMessage(err, 'Could not update'));
-    }
-  }
 
   async function saveSnapshot() {
     try {
@@ -67,28 +69,45 @@ export function NetWorthTracker() {
     }
   }
 
-  const lastSyncedNote = summary
-    ? `${formatCurrency(summary.totalAssets, baseCurrency)} assets · ${formatCurrency(summary.totalLiabilities, baseCurrency)} debts · live FX`
-    : null;
-
   const chartData = (history ?? []).map((p) => ({ label: chartLabel(p.date, granularity), value: p.netWorth }));
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold text-ink md:text-3xl">Net worth</h1>
+        <div>
+          <h1 className="text-2xl font-extrabold text-ink md:text-3xl">My money</h1>
+          <p className="text-xs text-ink-soft">Everything you own, owe, earn and pay — all in {baseCurrency}, live FX.</p>
+        </div>
       </header>
 
       {/* Live total */}
       <Card padded className="bg-gradient-primary text-white">
-        <p className="text-sm text-white/80">Your net worth ({baseCurrency})</p>
+        <p className="text-sm text-white/80">Net worth</p>
         <p className="mt-1 text-4xl font-extrabold leading-none">
           <CountUp value={liveNetWorth} format={(n) => formatCurrency(n, baseCurrency)} />
         </p>
-        {lastSyncedNote && <p className="mt-2 text-xs text-white/80">{lastSyncedNote}</p>}
+        <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <p className="text-white/70">Assets</p>
+            <p className="font-bold">{formatCurrency(liveAssetsTotal, baseCurrency)}</p>
+          </div>
+          <div>
+            <p className="text-white/70">Debts</p>
+            <p className="font-bold">−{formatCurrency(liveLiabTotal, baseCurrency)}</p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="mt-3 !bg-white/15 !text-white hover:!bg-white/25"
+          loading={snapshot.isPending}
+          onClick={saveSnapshot}
+        >
+          📸 Save today’s snapshot
+        </Button>
       </Card>
 
-      {/* History chart with granularity toggle */}
+      {/* Trend */}
       <Card padded>
         <div className="flex items-center justify-between">
           <h2 className="font-bold text-ink">Trend</h2>
@@ -108,70 +127,56 @@ export function NetWorthTracker() {
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
               <defs>
-                <linearGradient id="nw-trk" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="nw-money" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#6C63FF" stopOpacity={0.35} />
                   <stop offset="100%" stopColor="#6C63FF" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EEF0FA" />
               <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} stroke="#6B7280" />
-              <YAxis tickLine={false} axisLine={false} fontSize={11} stroke="#6B7280" width={48}
-                tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`)} />
+              <YAxis
+                tickLine={false} axisLine={false} fontSize={11} stroke="#6B7280" width={48}
+                tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`)}
+              />
               <Tooltip formatter={(v: number) => [formatCurrency(v, baseCurrency), 'Net worth']} contentStyle={{ borderRadius: 12, border: '1px solid #E5E7EB' }} />
-              <Area type="monotone" dataKey="value" stroke="#6C63FF" strokeWidth={2.5} fill="url(#nw-trk)" />
+              <Area type="monotone" dataKey="value" stroke="#6C63FF" strokeWidth={2.5} fill="url(#nw-money)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </Card>
 
-      {/* Editable balances */}
-      <Card padded>
-        <div className="flex items-center justify-between">
-          <h2 className="font-bold text-ink">Accounts</h2>
-          <Link to="/app/profile" className="focus-ring text-sm font-semibold text-primary">+ Add</Link>
-        </div>
-        {(!assets || assets.length === 0) ? (
-          <p className="mt-3 text-sm text-ink-soft">
-            No accounts yet. <Link to="/app/profile" className="font-semibold text-primary">Add some in Settings →</Link>
-          </p>
-        ) : (
-          <div className="mt-2">
-            {assets.map((a) => (
-              <AssetRowEditor
-                key={a.id}
-                asset={a}
-                baseCurrency={baseCurrency}
-                rateToBase={rateMap.get(a.currency) ?? 1}
-                onLiveChange={(id, base) => setLiveByAsset((prev) => (prev[id] === base ? prev : { ...prev, [id]: base }))}
-                onCommit={commitBalance}
-                saving={setBalance.isPending}
-              />
-            ))}
-          </div>
-        )}
+      <AccountsSection
+        assets={assets ?? []}
+        baseCurrency={baseCurrency}
+        rateMap={rateMap}
+        onLiveChange={(id, base) => setLiveByAsset((prev) => (prev[id] === base ? prev : { ...prev, [id]: base }))}
+      />
 
-        {liabilities && liabilities.length > 0 && (
-          <div className="mt-4 flex items-center justify-between rounded-2xl bg-danger/5 px-3 py-2 text-sm">
-            <span className="text-ink-soft">Debts ({liabilities.length})</span>
-            <span className="font-bold text-danger">−{formatCurrency(liveLiabTotal, baseCurrency)}</span>
-          </div>
-        )}
+      <DebtsSection
+        liabilities={liabilities ?? []}
+        assets={assets ?? []}
+        baseCurrency={baseCurrency}
+      />
 
-        <Button size="lg" fullWidth className="mt-4" loading={snapshot.isPending} onClick={saveSnapshot}>
-          📸 Save today’s snapshot
-        </Button>
-      </Card>
+      <IncomeSection
+        incomes={incomes ?? []}
+        assets={assets ?? []}
+        baseCurrency={baseCurrency}
+      />
+
+      <BillsSection
+        bills={bills ?? []}
+        baseCurrency={baseCurrency}
+      />
 
       <p className="px-2 text-center text-[11px] leading-relaxed text-ink-soft">
-        All amounts shown in {baseCurrency}, converted from native currencies using the latest exchange rates.
+        All totals in {baseCurrency}, converted from native currencies using the latest exchange rates.
       </p>
     </div>
   );
 }
 
 function chartLabel(date: string, g: NetWorthGranularity): string {
-  // Date keys are YYYY-MM-DD (some are ISO-week buckets like 2026-W22, but the
-  // service emits real dates in the entries; we use the entry's full date here).
   const d = new Date(date.length === 10 ? date : `${date}-01`);
   if (g === 'D') return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   if (g === 'W') return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });

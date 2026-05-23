@@ -5,7 +5,7 @@ import { playSound } from '@/lib/sound';
 
 const ITEMS = [
   { to: '/app', label: 'Dashboard', icon: '🏠', end: true },
-  { to: '/app/networth', label: 'Net worth', icon: '💎', end: false },
+  { to: '/app/money', label: 'Money', icon: '💎', end: false },
   { to: '/app/expenses', label: 'Expenses', icon: '🧾', end: false },
   { to: '/app/goals', label: 'Goals', icon: '🎯', end: false },
   { to: '/app/reports', label: 'Reports', icon: '📊', end: false },
